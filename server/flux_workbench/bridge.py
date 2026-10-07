@@ -3,6 +3,7 @@
 Pattern taken from ``mcp-rendering/src/renderer.py``.
 """
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,7 +32,7 @@ def clean_payload(request: dict[str, Any]) -> dict[str, Any]:
     (e.g. ``seed: None`` -> key removed, bridge rolls a seed). ``False``, ``0`` and ``""``
     are kept. The input dict must not be modified.
     """
-    raise NotImplementedError
+    return {key: value for key, value in request.items() if value is not None}
 
 
 class BridgeClient:
@@ -59,7 +60,34 @@ class BridgeClient:
         ``effective``: ``json.loads`` of header ``X-Render-Settings``; ``None`` if the header is
         missing, not valid JSON, or not a JSON object.
         """
-        raise NotImplementedError
+        payload = clean_payload(request)
+        try:
+            resp = await self.client.post(
+                self.url, json=payload, timeout=httpx.Timeout(self.timeout, connect=10)
+            )
+        except httpx.TimeoutException:
+            raise BridgeError(f"Timeout nach {self.timeout:.0f} s") from None
+        except httpx.HTTPError as exc:
+            raise BridgeError(f"Bridge nicht erreichbar: {exc}") from exc
+
+        if resp.status_code != 200:
+            raise BridgeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
+
+        body = resp.content
+        if not body.startswith(PNG_SIGNATURE):
+            raise BridgeError(f"Bridge lieferte kein PNG ({resp.headers.get('content-type')})")
+
+        effective: dict[str, Any] | None = None
+        raw = resp.headers.get("X-Render-Settings")
+        if raw is not None:
+            try:
+                parsed = json.loads(raw)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                parsed = None
+            if isinstance(parsed, dict):
+                effective = parsed
+
+        return RenderResult(png=body, effective=effective)
 
     async def aclose(self) -> None:
         """Close the underlying httpx client."""
