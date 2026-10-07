@@ -1,6 +1,7 @@
 """In-memory FIFO render queue with exactly one worker (strictly sequential bridge calls)."""
 
 import asyncio
+import copy
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -62,11 +63,18 @@ class RenderQueue:
         Store a deep copy of ``request`` (``copy.deepcopy``) so later edits by the caller
         do not change the job.
         """
-        raise NotImplementedError
+        self.store.project_dir(project_id)
+        prompt = request.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ProjectError("prompt fehlt")
+        job = Job(project_id=project_id, request=copy.deepcopy(request))
+        self._jobs.append(job)
+        self._queue.put_nowait(job)
+        return job
 
     def list_jobs(self) -> list[Job]:
         """Return a copy of ``_jobs`` (submit order, oldest first)."""
-        raise NotImplementedError
+        return list(self._jobs)
 
     def cancel(self, job_id: str) -> None:
         """Set a queued job's status to ``"cancelled"`` (the worker will skip it).
@@ -75,7 +83,12 @@ class RenderQueue:
             NotFound: unknown ``job_id``.
             JobNotCancellable: status is not ``"queued"``.
         """
-        raise NotImplementedError
+        job = next((j for j in self._jobs if j.id == job_id), None)
+        if job is None:
+            raise NotFound(job_id)
+        if job.status != "queued":
+            raise JobNotCancellable(job_id)
+        job.status = "cancelled"
 
     async def process(self, job: Job) -> None:
         """Run one job; never raises.
@@ -91,13 +104,50 @@ class RenderQueue:
         - Any other ``Exception`` -> ``log.exception(...)``, ``status = "error"``,
           ``error = f"Interner Fehler: {exc}"``.
         """
-        raise NotImplementedError
+        if job.status == "cancelled":
+            return
+        job.status = "running"
+        try:
+            result = await self.renderer.render(job.request)
+        except BridgeError as exc:
+            job.status = "error"
+            job.error = str(exc)
+            return
+        except (NotFound, ProjectError):
+            job.status = "error"
+            job.error = f"Projekt nicht gefunden: {job.project_id}"
+            return
+        except Exception as exc:
+            log.exception("Render job %s fehlgeschlagen", job.id)
+            job.status = "error"
+            job.error = f"Interner Fehler: {exc}"
+            return
+        try:
+            n = self.store.save_render(
+                job.project_id, result.png, {"request": job.request, "effective": result.effective}
+            )
+        except (NotFound, ProjectError):
+            job.status = "error"
+            job.error = f"Projekt nicht gefunden: {job.project_id}"
+            return
+        except Exception as exc:
+            log.exception("Render job %s fehlgeschlagen", job.id)
+            job.status = "error"
+            job.error = f"Interner Fehler: {exc}"
+            return
+        job.image_n = n
+        job.status = "done"
 
     async def run_worker(self) -> None:
         """Forever: ``job = await self._queue.get()``, ``await self.process(job)``,
         then ``self._queue.task_done()`` (in ``finally``). Started once as an asyncio task
         by the app lifespan; cancellation (``CancelledError``) simply ends the loop."""
-        raise NotImplementedError
+        while True:
+            job = await self._queue.get()
+            try:
+                await self.process(job)
+            finally:
+                self._queue.task_done()
 
     async def join(self) -> None:
         """Wait until every submitted job has been processed (``await self._queue.join()``)."""
