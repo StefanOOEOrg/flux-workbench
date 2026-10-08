@@ -38,6 +38,8 @@ export type TextField = 'prompt' | 'model' | 'preset' | 'sampler' | 'scheduler' 
  * - `<button data-testid="reset">Defaults</button>` -> `resetToDefaults()`.
  *
  * All setters build a NEW object via `store.form.update(f => ({ ...f, ... }))`.
+ * Every `<button>` in this template MUST have `type="button"`: the controls sit inside a
+ * `<form>`, and a default (`submit`) button would reload the whole page in the browser.
  */
 @Component({
   selector: 'app-param-form',

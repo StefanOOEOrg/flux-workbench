@@ -171,6 +171,18 @@ describe('ParamForm', () => {
     steps.dispatchEvent(new Event('input'));
     expect(store.form().steps).toBe(12);
   });
+
+  it('never triggers a native form submit (would reload the page)', () => {
+    const { store, fixture, el } = render(ParamForm);
+    vi.spyOn(store, 'submit').mockResolvedValue();
+    store.selectedProject.set('20261007-x');
+    fixture.detectChanges();
+    const buttons = Array.from(el.querySelectorAll('button'));
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button.type).toBe('button');
+    }
+  });
 });
 
 describe('QueuePanel', () => {
