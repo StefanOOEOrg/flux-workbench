@@ -1,0 +1,31 @@
+.strip {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.strip figure {
+  margin: 0;
+  width: 160px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.strip img {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+}
+
+.strip figcaption {
+  text-align: center;
+  font-size: 0.9em;
+}
+
+.strip figure.selected {
+  border-color: #0057d2;
+}

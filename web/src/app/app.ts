@@ -34,6 +34,9 @@ export class App implements OnInit {
    * `destroyRef.onDestroy(() => clearInterval(id))`.
    */
   ngOnInit(): void {
-    throw new Error('not implemented');
+    void this.store.loadProjects();
+    void this.store.refreshJobs();
+    const id = setInterval(() => this.store.refreshJobs(), POLL_MS);
+    this.destroyRef.onDestroy(() => clearInterval(id));
   }
 }

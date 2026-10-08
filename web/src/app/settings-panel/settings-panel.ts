@@ -31,17 +31,22 @@ export class SettingsPanel {
 
   /** `flattenSettings(effectiveOrRequest(settings))`, or `[]` without settings. */
   readonly rows = computed<[string, unknown][]>(() => {
-    throw new Error('not implemented');
+    const settings = this.store.settings();
+    if (settings === null) {
+      return [];
+    }
+    return flattenSettings(effectiveOrRequest(settings));
   });
 
   /** Set of `path`s from `store.diff()`. */
   readonly changedPaths = computed<Set<string>>(() => {
-    throw new Error('not implemented');
+    return new Set(this.store.diff().map((e) => e.path));
   });
 
   /** `store.settings()?.effective?.['seed']` if it is a number, else `null`. */
   readonly seed = computed<number | null>(() => {
-    throw new Error('not implemented');
+    const seed = this.store.settings()?.effective?.['seed'];
+    return typeof seed === 'number' ? seed : null;
   });
 
   /**
@@ -51,11 +56,32 @@ export class SettingsPanel {
    * - removed: `` `${path}: entfernt (war ${formatValue(before)})` ``
    */
   formatDiff(entry: { path: string; kind: string; before?: unknown; after?: unknown }): string {
-    throw new Error('not implemented');
+    if (entry.kind === 'added') {
+      return `${entry.path}: neu ${this.formatValue(entry.after)}`;
+    }
+    if (entry.kind === 'removed') {
+      return `${entry.path}: entfernt (war ${this.formatValue(entry.before)})`;
+    }
+    return `${entry.path}: ${this.formatValue(entry.before)} → ${this.formatValue(entry.after)}`;
+  }
+
+  /** `store.settings()!.request` serialized as pretty JSON for display in the `<details>`. */
+  requestJson(): string {
+    const settings = this.store.settings();
+    if (settings === null) {
+      return '';
+    }
+    return JSON.stringify(settings.request, null, 2);
   }
 
   /** Strings as-is (no quotes), everything else `JSON.stringify(value)`; `undefined` -> `'–'`. */
   formatValue(value: unknown): string {
-    throw new Error('not implemented');
+    if (value === undefined) {
+      return '–';
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    return JSON.stringify(value);
   }
 }

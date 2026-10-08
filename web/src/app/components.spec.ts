@@ -171,6 +171,38 @@ describe('ParamForm', () => {
     steps.dispatchEvent(new Event('input'));
     expect(store.form().steps).toBe(12);
   });
+
+  it('never triggers a native form submit (would reload the page)', () => {
+    const { store, fixture, el } = render(ParamForm);
+    vi.spyOn(store, 'submit').mockResolvedValue();
+    store.selectedProject.set('20261007-x');
+    fixture.detectChanges();
+    const buttons = Array.from(el.querySelectorAll('button'));
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button.type).toBe('button');
+    }
+  });
+
+  it('selects show the current form values', () => {
+    const { store, fixture, one } = render(ParamForm);
+    fixture.detectChanges();
+    expect((one('f-model') as HTMLSelectElement).value).toBe('flux-lora');
+    expect((one('f-preset') as HTMLSelectElement).value).toBe('realistic');
+
+    store.form.update((f) => ({ ...f, preset: 'fast', model: 'flux' }));
+    fixture.detectChanges();
+    expect((one('f-model') as HTMLSelectElement).value).toBe('flux');
+    expect((one('f-preset') as HTMLSelectElement).value).toBe('fast');
+
+    store.form.update((f) => {
+      const next = { ...f };
+      delete next.preset;
+      return next;
+    });
+    fixture.detectChanges();
+    expect((one('f-preset') as HTMLSelectElement).value).toBe('');
+  });
 });
 
 describe('QueuePanel', () => {

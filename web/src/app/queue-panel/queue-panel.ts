@@ -27,12 +27,31 @@ export class QueuePanel {
    * jobs (by submit order); `cancelled` jobs are hidden.
    */
   readonly visibleJobs = computed<Job[]>(() => {
-    throw new Error('not implemented');
+    const jobs = this.store.jobs();
+    const shown = jobs
+      .filter((j) => j.status === 'queued' || j.status === 'running' || j.status === 'error')
+      .reverse();
+    const done = jobs
+      .filter((j) => j.status === 'done')
+      .slice(-5)
+      .reverse();
+    return [...shown, ...done];
   });
 
   /** queued -> `Wartet`, running -> `Läuft`, done -> `Fertig (#<image_n>)`, error -> `Fehler`,
    *  cancelled -> `Entfernt`. */
   statusLabel(job: Job): string {
-    throw new Error('not implemented');
+    switch (job.status) {
+      case 'queued':
+        return 'Wartet';
+      case 'running':
+        return 'Läuft';
+      case 'done':
+        return `Fertig (#${job.image_n})`;
+      case 'error':
+        return 'Fehler';
+      case 'cancelled':
+        return 'Entfernt';
+    }
   }
 }

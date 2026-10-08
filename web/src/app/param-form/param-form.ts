@@ -1,6 +1,13 @@
 import { Component, inject } from '@angular/core';
 
-import { DEFAULT_REQUEST, FaceFixOptions, HiresOptions, MODELS, PRESETS } from '../models';
+import {
+  DEFAULT_REQUEST,
+  FaceFixOptions,
+  HiresOptions,
+  MODELS,
+  PRESETS,
+  RenderRequest,
+} from '../models';
 import { WorkbenchStore } from '../workbench.store';
 
 /** Keys of `RenderRequest` with a plain number value. */
@@ -31,6 +38,12 @@ export type TextField = 'prompt' | 'model' | 'preset' | 'sampler' | 'scheduler' 
  * - `<button data-testid="reset">Defaults</button>` -> `resetToDefaults()`.
  *
  * All setters build a NEW object via `store.form.update(f => ({ ...f, ... }))`.
+ * Every `<button>` in this template MUST have `type="button"`: the controls sit inside a
+ * `<form>`, and a default (`submit`) button would reload the whole page in the browser.
+ * `<select>`s (`model`, `preset`): do NOT bind `[value]` on the `<select>` (it is applied before
+ * the `@for` options exist, so the select shows the wrong option). Instead bind
+ * `[selected]="m === store.form().model"` on each `<option>` (empty option:
+ * `[selected]="store.form().model === undefined"`; same for `preset`).
  */
 @Component({
   selector: 'app-param-form',
@@ -45,52 +58,137 @@ export class ParamForm {
   /** Empty string -> remove the key (`seed`: set `null`); otherwise `Number(raw)`;
    *  `NaN` -> ignore (no change). */
   setNumber(key: NumberField, raw: string): void {
-    throw new Error('not implemented');
+    if (raw === '') {
+      if (key === 'seed') {
+        this.store.form.update((f) => ({ ...f, seed: null }));
+      } else {
+        this.store.form.update((f) => {
+          const next: RenderRequest = { ...f };
+          delete next[key];
+          return next;
+        });
+      }
+      return;
+    }
+    const value = Number(raw);
+    if (Number.isNaN(value)) {
+      return;
+    }
+    this.store.form.update((f) => ({ ...f, [key]: value }));
   }
 
   /** Set the string. Exception: `preset` and `model` with `''` -> remove the key. */
   setText(key: TextField, value: string): void {
-    throw new Error('not implemented');
+    if (value === '' && (key === 'preset' || key === 'model')) {
+      this.store.form.update((f) => {
+        const next: RenderRequest = { ...f };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+    this.store.form.update((f) => ({ ...f, [key]: value }));
   }
 
   /** `true` -> `hires` = previous object if it was one, else `{ scale: 1.5, denoise: 0.4,
    *  steps: 25 }`; `false` -> `hires: false`. */
   setHiresEnabled(enabled: boolean): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => {
+      if (!enabled) {
+        return { ...f, hires: false };
+      }
+      const hires = this.isObject(f.hires) ? f.hires : { scale: 1.5, denoise: 0.4, steps: 25 };
+      return { ...f, hires };
+    });
   }
 
   /** Set one key of the `hires` object (only if `hires` is an object; `''`/`NaN` -> remove key). */
   setHires(key: keyof HiresOptions, raw: string): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => {
+      if (!this.isObject(f.hires)) {
+        return f;
+      }
+      if (raw === '') {
+        const next: HiresOptions = { ...f.hires };
+        delete next[key];
+        return { ...f, hires: next };
+      }
+      const value = Number(raw);
+      if (Number.isNaN(value)) {
+        return f;
+      }
+      return { ...f, hires: { ...f.hires, [key]: value } };
+    });
   }
 
   /** Like `setHiresEnabled`, default object `{ steps: 25, denoise: 0.4 }`. */
   setFaceFixEnabled(enabled: boolean): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => {
+      if (!enabled) {
+        return { ...f, face_fix: false };
+      }
+      const face_fix = this.isObject(f.face_fix) ? f.face_fix : { steps: 25, denoise: 0.4 };
+      return { ...f, face_fix };
+    });
   }
 
   /** Like `setHires` for `face_fix`. */
   setFaceFix(key: keyof FaceFixOptions, raw: string): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => {
+      if (!this.isObject(f.face_fix)) {
+        return f;
+      }
+      if (raw === '') {
+        const next: FaceFixOptions = { ...f.face_fix };
+        delete next[key];
+        return { ...f, face_fix: next };
+      }
+      const value = Number(raw);
+      if (Number.isNaN(value)) {
+        return f;
+      }
+      return { ...f, face_fix: { ...f.face_fix, [key]: value } };
+    });
   }
 
   /** `hand_fix: enabled`. */
   setHandFix(enabled: boolean): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => ({ ...f, hand_fix: enabled }));
   }
 
   /** `''` -> remove `lora2`; otherwise `Number(raw)` (`NaN` -> ignore). */
   setLora2(raw: string): void {
-    throw new Error('not implemented');
+    if (raw === '') {
+      this.store.form.update((f) => {
+        const next: RenderRequest = { ...f };
+        delete next.lora2;
+        return next;
+      });
+      return;
+    }
+    const value = Number(raw);
+    if (Number.isNaN(value)) {
+      return;
+    }
+    this.store.form.update((f) => ({ ...f, lora2: value }));
   }
 
   /** `store.form.set(structuredClone(DEFAULT_REQUEST))`. */
   resetToDefaults(): void {
-    throw new Error('not implemented');
+    this.store.form.set(structuredClone(DEFAULT_REQUEST));
   }
 
   /** Helper for the template: `typeof v === 'object' && v !== null`. */
   isObject(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null;
+  }
+
+  /** Helper for the template: return the `key` value of `hires`/`face_fix` if it's an object. */
+  nestedValue(field: 'hires' | 'face_fix', key: string): unknown {
+    const v = this.store.form()[field];
+    if (!this.isObject(v)) {
+      return undefined;
+    }
+    return v[key];
   }
 }
