@@ -26,7 +26,10 @@ export class ProjectList {
 
   /** `await store.createProject(newName())`; clear `newName` if `store.error()` is null after. */
   async create(): Promise<void> {
-    throw new Error('not implemented');
+    await this.store.createProject(this.newName());
+    if (this.store.error() === null) {
+      this.newName.set('');
+    }
   }
 
   /**
@@ -35,6 +38,9 @@ export class ProjectList {
    * `await store.deleteProject(id)`.
    */
   async remove(id: string, event: Event): Promise<void> {
-    throw new Error('not implemented');
+    event.stopPropagation();
+    if (this.confirmFn(`Projekt "${id}" mit allen Bildern löschen?`)) {
+      await this.store.deleteProject(id);
+    }
   }
 }

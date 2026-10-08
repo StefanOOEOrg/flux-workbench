@@ -1,0 +1,54 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1c1c1c;
+}
+
+.error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #c62828;
+  color: #fff;
+}
+
+.error button {
+  background: transparent;
+  color: #fff;
+  border: 1px solid #fff;
+  font-size: 1em;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 12px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.left {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.right {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+
+.bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 0;
+}

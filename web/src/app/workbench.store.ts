@@ -232,7 +232,6 @@ export class WorkbenchStore {
       const jobs = await firstValueFrom(this.api.listJobs());
       const oldJobs = this.jobs();
       this.jobs.set(jobs);
-      this.error.set(null);
       if (project === null) {
         return;
       }
