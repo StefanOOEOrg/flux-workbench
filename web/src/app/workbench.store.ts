@@ -39,7 +39,12 @@ export class WorkbenchStore {
 
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
-    throw new Error('not implemented');
+    try {
+      this.projects.set(await firstValueFrom(this.api.listProjects()));
+      this.error.set(null);
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -47,7 +52,18 @@ export class WorkbenchStore {
    * Blank `name` (after trim) -> set `error = 'Projektname fehlt'`, no HTTP call.
    */
   async createProject(name: string): Promise<void> {
-    throw new Error('not implemented');
+    if (name.trim() === '') {
+      this.error.set('Projektname fehlt');
+      return;
+    }
+    try {
+      const { id } = await firstValueFrom(this.api.createProject(name));
+      await this.loadProjects();
+      await this.selectProject(id);
+      this.error.set(null);
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -56,7 +72,22 @@ export class WorkbenchStore {
    * `images` and `diff` -> [], `form` -> fresh copy of `DEFAULT_REQUEST`.
    */
   async deleteProject(id: string): Promise<void> {
-    throw new Error('not implemented');
+    try {
+      await firstValueFrom(this.api.deleteProject(id));
+      const wasSelected = this.selectedProject() === id;
+      await this.loadProjects();
+      if (wasSelected) {
+        this.selectedProject.set(null);
+        this.selectedImage.set(null);
+        this.settings.set(null);
+        this.images.set([]);
+        this.diff.set([]);
+        this.form.set(structuredClone(DEFAULT_REQUEST));
+      }
+      this.error.set(null);
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -67,7 +98,24 @@ export class WorkbenchStore {
    *   continues from the newest render.
    */
   async selectProject(id: string): Promise<void> {
-    throw new Error('not implemented');
+    try {
+      this.selectedProject.set(id);
+      const list = await firstValueFrom(this.api.listImages(id));
+      this.images.set(list);
+      this.imagesVersion.update((v) => v + 1);
+      if (list.length === 0) {
+        this.selectedImage.set(null);
+        this.settings.set(null);
+        this.diff.set([]);
+        this.form.set(structuredClone(DEFAULT_REQUEST));
+        this.error.set(null);
+        return;
+      }
+      await this.selectImage(list[list.length - 1]);
+      this.cloneSelected();
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -79,7 +127,31 @@ export class WorkbenchStore {
    * Does NOT change `form`.
    */
   async selectImage(n: number): Promise<void> {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      return;
+    }
+    try {
+      const settings = await firstValueFrom(this.api.getSettings(project, n));
+      this.settings.set(settings);
+      this.selectedImage.set(n);
+      this.error.set(null);
+      const images = this.images();
+      const idx = images.indexOf(n);
+      const prev = idx > 0 ? images[idx - 1] : null;
+      if (prev === null) {
+        this.diff.set([]);
+        return;
+      }
+      try {
+        const prevSettings = await firstValueFrom(this.api.getSettings(project, prev));
+        this.diff.set(diffSettings(effectiveOrRequest(prevSettings), effectiveOrRequest(settings)));
+      } catch {
+        this.diff.set([]);
+      }
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -88,7 +160,15 @@ export class WorkbenchStore {
    * or not a string, set it to `''`. No-op if `settings()` is null.
    */
   cloneSelected(): void {
-    throw new Error('not implemented');
+    const settings = this.settings();
+    if (settings === null) {
+      return;
+    }
+    const request = structuredClone(settings.request) as unknown as RenderRequest;
+    if (typeof request.prompt !== 'string') {
+      request.prompt = '';
+    }
+    this.form.set(request);
   }
 
   /**
@@ -96,7 +176,11 @@ export class WorkbenchStore {
    * (new object via `form.update`). Otherwise no-op.
    */
   adoptSeed(): void {
-    throw new Error('not implemented');
+    const seed = this.settings()?.effective?.['seed'];
+    if (typeof seed !== 'number') {
+      return;
+    }
+    this.form.update((f) => ({ ...f, seed }));
   }
 
   /**
@@ -105,12 +189,33 @@ export class WorkbenchStore {
    * Empty prompt (after trim) -> `error = 'Prompt fehlt'`, no HTTP call.
    */
   async submit(): Promise<void> {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      this.error.set('Kein Projekt ausgewählt');
+      return;
+    }
+    if (this.form().prompt.trim() === '') {
+      this.error.set('Prompt fehlt');
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.submitJob(project, this.form()));
+      this.error.set(null);
+      await this.refreshJobs();
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /** Cancel a queued job, then `refreshJobs()`. */
   async cancelJob(jobId: string): Promise<void> {
-    throw new Error('not implemented');
+    try {
+      await firstValueFrom(this.api.cancelJob(jobId));
+      this.error.set(null);
+      await this.refreshJobs();
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -121,17 +226,61 @@ export class WorkbenchStore {
    * Errors: set `error` like everywhere else.
    */
   async refreshJobs(): Promise<void> {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    try {
+      const jobs = await firstValueFrom(this.api.listJobs());
+      const oldJobs = this.jobs();
+      this.jobs.set(jobs);
+      this.error.set(null);
+      if (project === null) {
+        return;
+      }
+      const newlyDone = jobs.filter((j) => {
+        if (j.project_id !== project || j.status !== 'done') {
+          return false;
+        }
+        const old = oldJobs.find((o) => o.id === j.id);
+        return old === undefined || old.status !== 'done';
+      });
+      if (newlyDone.length === 0) {
+        return;
+      }
+      const list = await firstValueFrom(this.api.listImages(project));
+      this.images.set(list);
+      this.imagesVersion.update((v) => v + 1);
+      for (let i = newlyDone.length - 1; i >= 0; i--) {
+        const job = newlyDone[i];
+        if (job.image_n !== null) {
+          await this.selectImage(job.image_n);
+          break;
+        }
+      }
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /** Open image `n` of the selected project in the system viewer (no-op without project). */
   async openImage(n: number): Promise<void> {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.openImage(project, n));
+      this.error.set(null);
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /** `api.imageUrl(selectedProject, n, imagesVersion())`; `''` without a selected project. */
   imageUrl(n: number): string {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      return '';
+    }
+    return this.api.imageUrl(project, n, this.imagesVersion());
   }
 }
 
@@ -143,5 +292,18 @@ export class WorkbenchStore {
  * - `Error` -> `message`; anything else -> `String(err)`.
  */
 export function errorMessage(err: unknown): string {
-  throw new Error('not implemented');
+  if (err instanceof HttpErrorResponse) {
+    const detail = (err.error as { detail?: unknown } | null | undefined)?.detail;
+    if (typeof detail === 'string') {
+      return detail;
+    }
+    if (err.status === 0) {
+      return 'Server nicht erreichbar';
+    }
+    return `HTTP ${err.status}: ${err.statusText}`;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err);
 }
