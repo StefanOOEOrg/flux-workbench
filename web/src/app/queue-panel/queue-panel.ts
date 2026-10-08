@@ -67,6 +67,7 @@ export class QueuePanel {
    * `#<image_n> · ` when `image_n` is a number. E.g. `'#6 · Gruenes_Auto'` or `'Portrait'`.
    */
   title(job: Job): string {
-    throw new Error('not implemented');
+    const name = projectLabel(job.project_id).name;
+    return typeof job.image_n === 'number' ? `#${job.image_n} · ${name}` : name;
   }
 }

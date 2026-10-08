@@ -1,1 +1,57 @@
-<!-- TODO(sw-developer): markup as described in project-list.ts (mockup: docs/ui-mockup.html) -->
+<h2>
+  Projekte <span data-testid="project-count">{{ store.projects().length }}</span>
+</h2>
+
+<div class="newproj">
+  <input
+    data-testid="new-name"
+    placeholder="Neues Projekt …"
+    [value]="newName()"
+    (input)="newName.set($any($event.target).value)"
+    (keydown.enter)="create()"
+  />
+  <button type="button" data-testid="create" title="Projekt anlegen" (click)="create()">+</button>
+</div>
+
+<input
+  data-testid="filter"
+  class="search"
+  placeholder="Projekte filtern …"
+  [value]="store.projectFilter()"
+  (input)="store.projectFilter.set($any($event.target).value)"
+/>
+
+<ul class="projects">
+  @for (p of store.filteredProjects(); track p.id) {
+    <li
+      data-testid="project"
+      tabindex="0"
+      [class.selected]="p.id === store.selectedProject()"
+      (click)="store.selectProject(p.id)"
+      (keydown.enter)="store.selectProject(p.id)"
+    >
+      <div>
+        <span class="name">{{ label(p.id).name }}</span
+        ><small
+          >{{ label(p.id).date !== '' ? label(p.id).date + ' · ' : ''
+          }}{{ count(p.image_count) }}</small
+        >
+      </div>
+      <button
+        type="button"
+        data-testid="delete"
+        class="del"
+        title="Löschen"
+        (click)="remove(p.id, $event)"
+      >
+        ✕
+      </button>
+    </li>
+  }
+</ul>
+
+@if (store.projects().length === 0) {
+  <p class="hint">Noch keine Projekte</p>
+} @else if (store.filteredProjects().length === 0) {
+  <p class="hint">Kein Treffer</p>
+}
