@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 
+import { summary } from '../format';
 import {
   DEFAULT_REQUEST,
   FaceFixOptions,
@@ -96,7 +97,10 @@ export class ParamForm {
   /** Set the string. Exception: `preset`, `model`, `sampler`, `scheduler` with `''` -> remove
    *  the key (= bridge default). */
   setText(key: TextField, value: string): void {
-    if (value === '' && (key === 'preset' || key === 'model')) {
+    if (
+      value === '' &&
+      (key === 'preset' || key === 'model' || key === 'sampler' || key === 'scheduler')
+    ) {
       this.store.form.update((f) => {
         const next: RenderRequest = { ...f };
         delete next[key];
@@ -195,7 +199,13 @@ export class ParamForm {
    * it is already a number, otherwise `lora2: 1.35` (default from Stefan's example).
    */
   setLora2Enabled(enabled: boolean): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => {
+      if (!enabled) {
+        return { ...f, lora2: false };
+      }
+      const lora2 = typeof f.lora2 === 'number' ? f.lora2 : 1.35;
+      return { ...f, lora2 };
+    });
   }
 
   /**
@@ -203,7 +213,7 @@ export class ParamForm {
    * an object; `false` for `false`, `undefined`, `null`.
    */
   isOn(value: unknown): boolean {
-    throw new Error('not implemented');
+    return value === true || typeof value === 'number' || this.isObject(value);
   }
 
   /**
@@ -211,7 +221,10 @@ export class ParamForm {
    * returns `value` if it is a non-empty string that is NOT in `list`, otherwise `null`.
    */
   extraOption(value: string | undefined, list: readonly string[]): string | null {
-    throw new Error('not implemented');
+    if (typeof value !== 'string' || value === '') {
+      return null;
+    }
+    return list.includes(value) ? null : value;
   }
 
   /**
@@ -230,7 +243,44 @@ export class ParamForm {
    *               undefined]`, empty fallback `'aus'`
    */
   groupSummary(group: ParamGroup): string {
-    throw new Error('not implemented');
+    const f = this.store.form();
+    if (group === 'model') {
+      return summary([
+        f.model,
+        f.preset,
+        f.width !== undefined && f.height !== undefined ? `${f.width}×${f.height}` : undefined,
+      ]);
+    }
+    if (group === 'sampling') {
+      return summary([
+        f.steps !== undefined ? `${f.steps} steps` : undefined,
+        f.guidance !== undefined ? `g ${f.guidance}` : undefined,
+        typeof f.seed === 'number' ? `Seed ${f.seed}` : 'Seed zufällig',
+        f.sampler,
+        f.scheduler,
+      ]);
+    }
+    if (group === 'fixes') {
+      return summary(
+        [
+          this.isObject(f.hires)
+            ? `Hires ${f.hires['scale'] ?? '?'}×`
+            : f.hires === true
+              ? 'Hires'
+              : undefined,
+          this.isOn(f.face_fix) ? 'Face' : undefined,
+          f.hand_fix ? 'Hand' : undefined,
+        ],
+        'aus',
+      );
+    }
+    return summary(
+      [
+        f.lora_strength !== undefined ? `Heartsync ${f.lora_strength}` : undefined,
+        typeof f.lora2 === 'number' ? `Lustly ${f.lora2}` : f.lora2 === true ? 'Lustly' : undefined,
+      ],
+      'aus',
+    );
   }
 
   /** `store.form.set(structuredClone(DEFAULT_REQUEST))`. */
