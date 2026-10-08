@@ -38,6 +38,9 @@ export const POLL_MS = 2000;
  *
  * CSS (`app.css`): `:host { display: grid; grid-template-rows: 48px auto minmax(0, 1fr);
  * height: 100vh; overflow: hidden; }`; every grid child that may grow gets `min-height: 0`;
+ * place the rows EXPLICITLY: `.topbar { grid-row: 1; }`, `.error { grid-row: 2; }`,
+ * `.app { grid-row: 3; }` - the error bar only exists while `store.error()` is set, and without
+ * explicit rows `<main>` would slide into the `auto` row 2 and lose the full height.
  * `.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
  * padding: 14px; min-height: 0; overflow: auto; }` (prompt card: `overflow: hidden`).
  * Header, pill, dot, error bar as in the mockup.
