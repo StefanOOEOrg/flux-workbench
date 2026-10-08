@@ -1,0 +1,128 @@
+/* Shell layout (issue #11, mockup docs/ui-mockup.html).
+ * Bugfix: the page itself NEVER scrolls - every column scrolls on its own. */
+:host {
+  display: grid;
+  grid-template-rows: 48px auto minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Kopfzeile */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.logo {
+  font-weight: 700;
+}
+.logo span {
+  color: var(--accent-2);
+}
+.crumb {
+  color: var(--muted);
+}
+.spacer {
+  flex: 1;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.dot.busy {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
+
+/* Fehlerleiste (eigene Grid-Zeile zwischen Header und Main) */
+.error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  color: var(--err);
+}
+.error span {
+  flex: 1;
+  min-width: 0;
+}
+.error button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+/* Grundraster: links Projekte/Queue, rechts Arbeitsbereich */
+.app {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  min-height: 0;
+}
+
+/* Spalte 1: Projekte + Queue */
+.side {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  padding: 14px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 18px;
+  min-height: 0;
+  overflow: hidden;
+}
+.queue {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+/* Arbeitsbereich: oben Thumbnails über volle Breite, darunter Spalten gleich hoch */
+.work {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px 0 14px 14px;
+  min-height: 0;
+}
+::ng-deep app-thumbnail-strip {
+  padding-right: 14px;
+}
+.cols {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr) minmax(320px, 1.15fr);
+  gap: 14px;
+  min-height: 0;
+  padding-right: 14px;
+}
+
+/* Karten scrollen in sich; die Prompt-Karte nicht */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  min-height: 0;
+  overflow: auto;
+}
+.card:last-child {
+  overflow: hidden;
+}
