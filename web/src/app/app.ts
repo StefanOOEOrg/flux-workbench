@@ -1,32 +1,57 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 
+import { ImagePanel } from './image-panel/image-panel';
 import { ParamForm } from './param-form/param-form';
 import { ProjectList } from './project-list/project-list';
+import { PromptPanel } from './prompt-panel/prompt-panel';
 import { QueuePanel } from './queue-panel/queue-panel';
-import { SettingsPanel } from './settings-panel/settings-panel';
 import { ThumbnailStrip } from './thumbnail-strip/thumbnail-strip';
+import { projectLabel } from './format';
 import { WorkbenchStore } from './workbench.store';
 
 /** Poll interval for the render queue in ms. */
 export const POLL_MS = 2000;
 
 /**
- * Shell layout (`app.html` / `app.css`), CSS grid:
- * - left column (~260px): `<app-project-list>` on top, `<app-queue-panel>` below;
- * - right column: `<app-thumbnail-strip>` on top (full width), below it two columns
- *   `<app-settings-panel>` | `<app-param-form>`.
- * - Above everything, if `store.error()` is set: `<div class="error" data-testid="error">`
- *   with the text and a "×" `<button>` that sets `store.error` to null.
+ * Shell layout (issue #11, mockup `docs/ui-mockup.html`). The page itself NEVER scrolls; every
+ * column scrolls on its own. This is the fix for the hidden render button.
+ *
+ * Template (`app.html`):
+ * - `<header class="topbar">`: `<div class="logo">Flux <span>Workbench</span></div>`,
+ *   `<div class="crumb" data-testid="crumb">` = `'/ ' + projectLabel(selected).name` (empty
+ *   without project), spacer, `<div class="pill" data-testid="status">` with a dot and
+ *   `{{ store.runningCount() }} läuft · {{ store.queuedCount() }} wartet`; dot class `busy`
+ *   when `runningCount() > 0`.
+ * - If `store.error()` is set: `<div class="error" data-testid="error">` with the text and a
+ *   `<button type="button" title="Schließen">×</button>` that sets `store.error` to null
+ *   (rendered between header and main, takes its own grid row).
+ * - `<main class="app">` grid `250px minmax(0, 1fr)`:
+ *   - `<aside class="side">` grid rows `minmax(0, 1fr) auto`: `<app-project-list>` and
+ *     `<app-queue-panel class="queue">` (queue `max-height: 40vh; overflow-y: auto;
+ *     border-top`).
+ *   - `<section class="work">` grid rows `auto minmax(0, 1fr)`: `<app-thumbnail-strip>` (full
+ *     width, padding-right 14px so it runs to the window edge) and
+ *     `<div class="cols" data-testid="cols">` grid
+ *     `minmax(280px, 1fr) minmax(280px, 1fr) minmax(320px, 1.15fr)` with three cards
+ *     `<app-image-panel class="card">`, `<app-param-form class="card">`,
+ *     `<app-prompt-panel class="card">`.
+ *
+ * CSS (`app.css`): `:host { display: grid; grid-template-rows: 48px auto minmax(0, 1fr);
+ * height: 100vh; overflow: hidden; }`; every grid child that may grow gets `min-height: 0`;
+ * `.card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+ * padding: 14px; min-height: 0; overflow: auto; }` (prompt card: `overflow: hidden`).
+ * Header, pill, dot, error bar as in the mockup.
  */
 @Component({
   selector: 'app-root',
-  imports: [ProjectList, QueuePanel, ThumbnailStrip, SettingsPanel, ParamForm],
+  imports: [ProjectList, QueuePanel, ThumbnailStrip, ImagePanel, ParamForm, PromptPanel],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App implements OnInit {
   protected readonly store = inject(WorkbenchStore);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly label = projectLabel;
 
   /**
    * Call `store.loadProjects()` and `store.refreshJobs()` once (do not await), then

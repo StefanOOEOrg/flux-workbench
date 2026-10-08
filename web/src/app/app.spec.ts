@@ -41,4 +41,80 @@ describe('App', () => {
     expect(store.error()).toBeNull();
     fixture.destroy();
   });
+
+  function shell() {
+    TestBed.configureTestingModule({ imports: [App] });
+    const store = TestBed.inject(WorkbenchStore);
+    vi.spyOn(store, 'loadProjects').mockResolvedValue();
+    vi.spyOn(store, 'refreshJobs').mockResolvedValue();
+    const fixture = TestBed.createComponent(App);
+    const el = fixture.nativeElement as HTMLElement;
+    const one = (id: string) => el.querySelector(`[data-testid="${id}"]`) as HTMLElement;
+    return { store, fixture, el, one };
+  }
+
+  it('shows project name and queue status in the top bar', () => {
+    const { store, fixture, one } = shell();
+    store.selectedProject.set('20261008-Gruenes_Auto');
+    store.jobs.set([
+      {
+        id: 'r',
+        project_id: 'x',
+        request: {},
+        status: 'running',
+        created_at: '',
+        image_n: null,
+        error: null,
+      },
+      {
+        id: 'q',
+        project_id: 'x',
+        request: {},
+        status: 'queued',
+        created_at: '',
+        image_n: null,
+        error: null,
+      },
+      {
+        id: 'w',
+        project_id: 'y',
+        request: {},
+        status: 'queued',
+        created_at: '',
+        image_n: null,
+        error: null,
+      },
+    ]);
+    fixture.detectChanges();
+    expect(one('crumb').textContent).toContain('Gruenes_Auto');
+    expect(one('crumb').textContent).not.toContain('20261008');
+    expect(one('status').textContent!.replace(/\s+/g, ' ').trim()).toBe('1 läuft · 2 wartet');
+    fixture.destroy();
+  });
+
+  it('renders all panels and the page itself never scrolls (bug fix #11)', () => {
+    const { fixture, el, one } = shell();
+    fixture.detectChanges();
+    for (const tag of [
+      'app-project-list',
+      'app-queue-panel',
+      'app-thumbnail-strip',
+      'app-image-panel',
+      'app-param-form',
+      'app-prompt-panel',
+    ]) {
+      expect(el.querySelector(tag), tag).not.toBeNull();
+    }
+    const cols = one('cols');
+    expect(Array.from(cols.children).map((c) => c.tagName.toLowerCase())).toEqual([
+      'app-image-panel',
+      'app-param-form',
+      'app-prompt-panel',
+    ]);
+    const host = getComputedStyle(el);
+    expect(host.display).toBe('grid');
+    expect(host.overflow).toBe('hidden');
+    expect(host.height).toBe('100vh');
+    fixture.destroy();
+  });
 });

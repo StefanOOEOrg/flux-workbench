@@ -1,3 +1,4 @@
+import json
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -39,7 +40,7 @@ def test_project_crud(api: TestClient, store) -> None:
     resp = api.post("/api/projects", json={"name": "Mein Auto!"})
     assert resp.status_code == 201
     assert resp.json() == {"id": "20261007-Mein_Auto"}
-    assert api.get("/api/projects").json() == ["20261007-Mein_Auto"]
+    assert api.get("/api/projects").json() == [{"id": "20261007-Mein_Auto", "image_count": 0}]
     assert api.post("/api/projects", json={"name": "Mein Auto"}).status_code == 409
     assert api.post("/api/projects", json={"name": "!!!"}).status_code == 400
     assert api.delete("/api/projects/20261007-Mein_Auto").status_code == 204
@@ -55,8 +56,20 @@ def test_images_settings_and_png(api: TestClient, store) -> None:
     assert png.headers["content-type"] == "image/png"
     assert png.content == PNG
     settings = api.get(f"/api/projects/{PID}/images/2/settings").json()
-    assert settings == {"request": {"steps": 2}, "effective": None}
+    assert settings == {"request": {"steps": 2}, "effective": None, "comment": ""}
     assert api.get(f"/api/projects/{PID}/images/5").status_code == 404
+
+
+def test_save_comment(api: TestClient, store) -> None:
+    folder = make_project(store, PID, {1: {"request": {"prompt": "p"}, "effective": None}})
+    url = f"/api/projects/{PID}/images/1/comment"
+    assert api.put(url, json={"comment": "zu dunkel"}).status_code == 204
+    assert api.get(f"/api/projects/{PID}/images/1/settings").json()["comment"] == "zu dunkel"
+    assert json.loads((folder / "1.json").read_text())["request"] == {"prompt": "p"}
+    other = f"/api/projects/{PID}/images/9/comment"
+    assert api.put(other, json={"comment": "x"}).status_code == 404
+    assert api.put(url, json={"comment": "x" * 5001}).status_code == 400
+    assert api.put(url, json={}).status_code == 422
 
 
 def test_path_traversal_rejected(api: TestClient) -> None:

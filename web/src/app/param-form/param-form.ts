@@ -7,6 +7,8 @@ import {
   MODELS,
   PRESETS,
   RenderRequest,
+  SAMPLERS,
+  SCHEDULERS,
 } from '../models';
 import { WorkbenchStore } from '../workbench.store';
 
@@ -16,34 +18,46 @@ export type NumberField = 'width' | 'height' | 'seed' | 'steps' | 'guidance' | '
 /** Keys of `RenderRequest` with a plain string value. */
 export type TextField = 'prompt' | 'model' | 'preset' | 'sampler' | 'scheduler' | 'negative';
 
+/** The collapsible groups of the parameter column, in display order. */
+export type ParamGroup = 'model' | 'sampling' | 'fixes' | 'lora';
+
 /**
- * Parameter form. Reads and writes ONLY `store.form()` (via the setters below); no local copy.
+ * Column "Parameter" (issue #11, middle card). Reads and writes ONLY `store.form()` via the
+ * setters below; no local copy. Prompt and negative prompt live in `PromptPanel` now, the
+ * render button too.
  *
- * Template (`param-form.html`), one control per field, each with a `<label>`;
- * every control gets `data-testid="f-<key>"` (nested: `f-hires-scale`, `f-face_fix-steps`):
- * - `prompt`, `negative`: `<textarea>`; `model`: `<select>` of `models`; `preset`: `<select>`
- *   of `presets` plus an empty option ("– Default –"); `sampler`, `scheduler`: text inputs.
- *   Text controls: `[value]="store.form().key ?? ''"`, `(input)` -> `setText(key, value)`.
- * - `width`, `height`, `seed`, `steps`, `guidance` (step 0.1), `lora_strength` (step 0.05,
- *   min 0, max 2): `<input type="number">`, `(input)` -> `setNumber(key, value)`.
- *   `seed` placeholder "zufällig".
- * - `hires`: checkbox `f-hires` (checked = `hires !== false && hires !== undefined`) ->
- *   `setHiresEnabled(checked)`; when it is an object show number inputs `scale`, `denoise`,
- *   `steps` -> `setHires(key, value)`.
- * - `face_fix`: same pattern (`steps`, `denoise`) -> `setFaceFixEnabled`, `setFaceFix`.
- * - `hand_fix`: checkbox -> `setHandFix(checked)`.
- * - `lora2`: number input (0–2, step 0.05) -> `setLora2(value)`.
- * - `<button data-testid="submit">Rendern</button>` -> `store.submit()`;
- *   disabled when no project is selected. Next to it `store.pendingJobs().length` "in Queue".
- * - `<button data-testid="reset">Defaults</button>` -> `resetToDefaults()`.
+ * Template (`param-form.html`) - NO `<form>` element; every `<button>` has `type="button"`.
+ * - Head row: `<h3>Parameter</h3>` and `<button type="button" data-testid="reset"
+ *   class="ghost">↺ Defaults</button>` -> `resetToDefaults()`.
+ * - Four groups, each `<details data-testid="group-<key>" class="group">` with
+ *   `<summary>` = `<span class="t">title</span><span class="sum" data-testid="sum-<key>">
+ *   {{ groupSummary(key) }}</span>`. Titles: model "Modell & Größe", sampling "Sampling",
+ *   fixes "Hires & Fixes", lora "LoRA". All groups start CLOSED (no `open` attribute).
+ * - model: `<select data-testid="f-model">` of `models` and `<select data-testid="f-preset">`
+ *   of `presets`, each with an empty option "– Default –"; number inputs `f-width`, `f-height`.
+ * - sampling: number inputs `f-steps`, `f-guidance` (step 0.1), `f-seed` (class `wide`,
+ *   placeholder "zufällig"); `<select data-testid="f-sampler">` of `samplers` and
+ *   `<select data-testid="f-scheduler">` of `schedulers`, each with "– Default –".
+ *   If the form holds a sampler/scheduler that is NOT in the list, add it as an extra option
+ *   so the value is not lost (`extraOption(...)`).
+ * - fixes: switch `f-hires` (checkbox styled as switch, checked = `isOn(form.hires)`) ->
+ *   `setHiresEnabled(checked)`; sub-fields `f-hires-scale`, `f-hires-denoise`, `f-hires-steps`
+ *   rendered ONLY if `isObject(form.hires)`. Same for `f-face_fix` with `f-face_fix-steps`,
+ *   `f-face_fix-denoise`. Switch `f-hand_fix` -> `setHandFix(checked)`.
+ * - lora: number input `f-lora_strength` (0–2, step 0.05, label "Heartsync"); switch
+ *   `f-lora2-on` (checked = `isOn(form.lora2)`) -> `setLora2Enabled(checked)` and, only when
+ *   `typeof form.lora2 === 'number'`, number input `f-lora2` (0–2, step 0.05, label "Lustly")
+ *   -> `setLora2(value)`. Hint "nur bei Modell „flux-lora“ wirksam".
+ * - Number inputs: `<input type="number">`, `[value]="store.form().key ?? ''"`, `(input)` ->
+ *   setter. Selects: do NOT bind `[value]` on `<select>` (applied before the `@for` options
+ *   exist); bind `[selected]="v === store.form().key"` on each option, empty option
+ *   `[selected]="store.form().key === undefined"`.
+ *
+ * CSS (`param-form.css`): mockup style - `.fields` flex-wrap with gap 10px 14px; number inputs
+ * 84px wide, `.wide` 120px; selects min-width 120px; sub-fields indented 38px; collapsed group
+ * shows `.sum` right-aligned, muted, monospace 11px; `:host { display: block; }`.
  *
  * All setters build a NEW object via `store.form.update(f => ({ ...f, ... }))`.
- * Every `<button>` in this template MUST have `type="button"`: the controls sit inside a
- * `<form>`, and a default (`submit`) button would reload the whole page in the browser.
- * `<select>`s (`model`, `preset`): do NOT bind `[value]` on the `<select>` (it is applied before
- * the `@for` options exist, so the select shows the wrong option). Instead bind
- * `[selected]="m === store.form().model"` on each `<option>` (empty option:
- * `[selected]="store.form().model === undefined"`; same for `preset`).
  */
 @Component({
   selector: 'app-param-form',
@@ -54,6 +68,8 @@ export class ParamForm {
   protected readonly store = inject(WorkbenchStore);
   protected readonly models = MODELS;
   protected readonly presets = PRESETS;
+  protected readonly samplers = SAMPLERS;
+  protected readonly schedulers = SCHEDULERS;
 
   /** Empty string -> remove the key (`seed`: set `null`); otherwise `Number(raw)`;
    *  `NaN` -> ignore (no change). */
@@ -77,7 +93,8 @@ export class ParamForm {
     this.store.form.update((f) => ({ ...f, [key]: value }));
   }
 
-  /** Set the string. Exception: `preset` and `model` with `''` -> remove the key. */
+  /** Set the string. Exception: `preset`, `model`, `sampler`, `scheduler` with `''` -> remove
+   *  the key (= bridge default). */
   setText(key: TextField, value: string): void {
     if (value === '' && (key === 'preset' || key === 'model')) {
       this.store.form.update((f) => {
@@ -171,6 +188,49 @@ export class ParamForm {
       return;
     }
     this.store.form.update((f) => ({ ...f, lora2: value }));
+  }
+
+  /**
+   * Switch for the second LoRA: `false` -> `lora2: false`; `true` -> keep the current value if
+   * it is already a number, otherwise `lora2: 1.35` (default from Stefan's example).
+   */
+  setLora2Enabled(enabled: boolean): void {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * "Switch is on" for `hires`, `face_fix`, `lora2`: `true` if the value is `true`, a number or
+   * an object; `false` for `false`, `undefined`, `null`.
+   */
+  isOn(value: unknown): boolean {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * Option value missing from a fixed list, so it can be shown as an extra option:
+   * returns `value` if it is a non-empty string that is NOT in `list`, otherwise `null`.
+   */
+  extraOption(value: string | undefined, list: readonly string[]): string | null {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * Text for the collapsed group header (use `summary()` from `../format`), from `store.form()`.
+   * Fallback when all parts are empty: model/sampling `'Defaults'` (the `summary` default),
+   * fixes/lora `'aus'`:
+   * - model:    `[model, preset, width && height ? `${width}×${height}` : undefined]`
+   * - sampling: `[steps !== undefined ? `${steps} steps` : undefined,
+   *               guidance !== undefined ? `g ${guidance}` : undefined,
+   *               typeof seed === 'number' ? `Seed ${seed}` : 'Seed zufällig', sampler, scheduler]`
+   * - fixes:    `[isObject(hires) ? `Hires ${hires.scale ?? '?'}×` : hires === true ? 'Hires' :
+   *               undefined, isOn(face_fix) ? 'Face' : undefined, hand_fix ? 'Hand' : undefined]`,
+   *             empty fallback `'aus'`
+   * - lora:     `[lora_strength !== undefined ? `Heartsync ${lora_strength}` : undefined,
+   *               typeof lora2 === 'number' ? `Lustly ${lora2}` : lora2 === true ? 'Lustly' :
+   *               undefined]`, empty fallback `'aus'`
+   */
+  groupSummary(group: ParamGroup): string {
+    throw new Error('not implemented');
   }
 
   /** `store.form.set(structuredClone(DEFAULT_REQUEST))`. */

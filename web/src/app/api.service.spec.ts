@@ -50,6 +50,15 @@ describe('ApiService', () => {
     http.expectOne('/api/projects/a%2Fb/images').flush([]);
   });
 
+  it('saves a comment', () => {
+    api.saveComment('20261007-a', 3, 'zu dunkel').subscribe();
+    const req = http.expectOne({ method: 'PUT', url: '/api/projects/20261007-a/images/3/comment' });
+    expect(req.request.body).toEqual({ comment: 'zu dunkel' });
+    req.flush(null);
+    api.saveComment('a/b', 1, '').subscribe();
+    http.expectOne({ method: 'PUT', url: '/api/projects/a%2Fb/images/1/comment' }).flush(null);
+  });
+
   it('talks to the queue', () => {
     api.listJobs().subscribe();
     http.expectOne({ method: 'GET', url: '/api/queue' }).flush([]);

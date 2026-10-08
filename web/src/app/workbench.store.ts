@@ -3,7 +3,14 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
-import { DEFAULT_REQUEST, DiffEntry, ImageSettings, Job, RenderRequest } from './models';
+import {
+  DEFAULT_REQUEST,
+  DiffEntry,
+  ImageSettings,
+  Job,
+  ProjectInfo,
+  RenderRequest,
+} from './models';
 import { diffSettings, effectiveOrRequest } from './settings-diff';
 
 /**
@@ -17,7 +24,9 @@ import { diffSettings, effectiveOrRequest } from './settings-diff';
 export class WorkbenchStore {
   private readonly api = inject(ApiService);
 
-  readonly projects = signal<string[]>([]);
+  readonly projects = signal<ProjectInfo[]>([]);
+  /** Text of the project filter field (case-insensitive substring match on the id). */
+  readonly projectFilter = signal('');
   readonly selectedProject = signal<string | null>(null);
   readonly images = signal<number[]>([]);
   readonly selectedImage = signal<number | null>(null);
@@ -36,6 +45,51 @@ export class WorkbenchStore {
   readonly pendingJobs = computed(() =>
     this.jobs().filter((j) => j.status === 'queued' || j.status === 'running'),
   );
+
+  /**
+   * `projects()` filtered by `projectFilter()`: keep entries whose `id` contains the trimmed
+   * filter text, case-insensitive (`toLowerCase`). Empty/blank filter -> all projects.
+   * Order unchanged (newest first).
+   */
+  readonly filteredProjects = computed<ProjectInfo[]>(() => {
+    throw new Error('not implemented');
+  });
+
+  /** Number of `running` jobs (all projects) - for the status badge in the header. */
+  readonly runningCount = computed<number>(() => {
+    throw new Error('not implemented');
+  });
+
+  /** Number of `queued` jobs (all projects) - for the status badge in the header. */
+  readonly queuedCount = computed<number>(() => {
+    throw new Error('not implemented');
+  });
+
+  /**
+   * Pending jobs (`queued` or `running`) of the selected project, oldest first.
+   * `[]` without a selected project. Used for the placeholder tiles in the thumbnail strip.
+   */
+  readonly projectPendingJobs = computed<Job[]>(() => {
+    throw new Error('not implemented');
+  });
+
+  /**
+   * Number the next render of the selected project will get, for the button
+   * "Rendern · Bild N": `max(images()) + 1 + projectPendingJobs().length`; with no images
+   * `1 + projectPendingJobs().length`. (Each pending job will take one number before it.)
+   */
+  readonly nextImageNumber = computed<number>(() => {
+    throw new Error('not implemented');
+  });
+
+  /**
+   * `true` if an image is selected (`settings()` not null) AND `form().prompt` differs from
+   * `settings().request['prompt']` (a missing/non-string request prompt counts as `''`).
+   * `false` without settings.
+   */
+  readonly promptModified = computed<boolean>(() => {
+    throw new Error('not implemented');
+  });
 
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
@@ -258,6 +312,16 @@ export class WorkbenchStore {
     } catch (err) {
       this.error.set(errorMessage(err));
     }
+  }
+
+  /**
+   * Save `comment` for the selected image: `api.saveComment(project, n, comment)`, then set
+   * `settings` to a NEW object with `comment` replaced (`settings.update(s => ({...s, comment}))`).
+   * No-op (no HTTP call) without selected project/image or if `comment === settings().comment`.
+   * Errors like everywhere else (`error` set, `settings` unchanged).
+   */
+  async saveComment(comment: string): Promise<void> {
+    throw new Error('not implemented');
   }
 
   /** Open image `n` of the selected project in the system viewer (no-op without project). */
