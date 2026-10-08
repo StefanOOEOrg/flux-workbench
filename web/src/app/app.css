@@ -9,6 +9,7 @@
 
 /* Kopfzeile */
 .topbar {
+  grid-row: 1;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -51,6 +52,7 @@
 
 /* Fehlerleiste (eigene Grid-Zeile zwischen Header und Main) */
 .error {
+  grid-row: 2;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -72,6 +74,7 @@
 
 /* Grundraster: links Projekte/Queue, rechts Arbeitsbereich */
 .app {
+  grid-row: 3;
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
   min-height: 0;
