@@ -1,1 +1,35 @@
-<!-- TODO(sw-developer): layout as described in app.ts (mockup: docs/ui-mockup.html) -->
+<header class="topbar">
+  <div class="logo">Flux <span>Workbench</span></div>
+  <div class="crumb" data-testid="crumb">
+    {{ store.selectedProject() ? '/ ' + label(store.selectedProject()!).name : '' }}
+  </div>
+  <div class="spacer"></div>
+  <div class="pill" data-testid="status">
+    <span class="dot" [class.busy]="store.runningCount() > 0"></span>
+    {{ store.runningCount() }} läuft · {{ store.queuedCount() }} wartet
+  </div>
+</header>
+
+@if (store.error()) {
+  <div class="error" data-testid="error">
+    <span>{{ store.error() }}</span>
+    <button type="button" title="Schließen" aria-label="Schließen" (click)="store.error.set(null)">
+      ×
+    </button>
+  </div>
+}
+
+<main class="app">
+  <aside class="side">
+    <app-project-list></app-project-list>
+    <app-queue-panel class="queue"></app-queue-panel>
+  </aside>
+  <section class="work">
+    <app-thumbnail-strip></app-thumbnail-strip>
+    <div class="cols" data-testid="cols">
+      <app-image-panel class="card"></app-image-panel>
+      <app-param-form class="card"></app-param-form>
+      <app-prompt-panel class="card"></app-prompt-panel>
+    </div>
+  </section>
+</main>

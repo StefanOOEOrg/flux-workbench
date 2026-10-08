@@ -114,7 +114,22 @@ describe('App', () => {
     const host = getComputedStyle(el);
     expect(host.display).toBe('grid');
     expect(host.overflow).toBe('hidden');
-    expect(host.height).toBe('100vh');
+    // jsdom resolves `100vh` to px (= window.innerHeight), so compare against that.
+    expect(host.height).toBe(`${window.innerHeight}px`);
+    // The error bar is optional (@if): main must be pinned to the 1fr row 3, otherwise it
+    // slides into the `auto` row 2 and the columns collapse to their content height.
+    const main = el.querySelector('main.app') as HTMLElement;
+    expect(getComputedStyle(main).gridRow).toBe('3');
+    fixture.destroy();
+  });
+
+  it('keeps main in row 3 when the error bar is shown', () => {
+    const { store, fixture, el } = shell();
+    store.error.set('kaputt');
+    fixture.detectChanges();
+    const error = el.querySelector('[data-testid="error"]') as HTMLElement;
+    expect(getComputedStyle(error).gridRow).toBe('2');
+    expect(getComputedStyle(el.querySelector('main.app') as HTMLElement).gridRow).toBe('3');
     fixture.destroy();
   });
 });
