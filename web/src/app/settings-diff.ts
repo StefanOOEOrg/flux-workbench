@@ -1,5 +1,13 @@
 import { DiffEntry, ImageSettings } from './models';
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 /**
  * Compare the settings of the previous image (`before`) with the selected image (`after`).
  *
@@ -28,7 +36,33 @@ export function diffSettings(
   before: Record<string, unknown> | null,
   after: Record<string, unknown> | null,
 ): DiffEntry[] {
-  throw new Error('not implemented');
+  if (before === null || after === null) {
+    return [];
+  }
+  const entries: DiffEntry[] = [];
+  const walk = (b: Record<string, unknown>, a: Record<string, unknown>, path: string): void => {
+    const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+    for (const key of keys) {
+      const p = path === '' ? key : `${path}.${key}`;
+      const inB = key in b && b[key] !== undefined;
+      const inA = key in a && a[key] !== undefined;
+      if (!inB && inA) {
+        entries.push({ path: p, kind: 'added', after: a[key] });
+      } else if (inB && !inA) {
+        entries.push({ path: p, kind: 'removed', before: b[key] });
+      } else {
+        const bv = b[key];
+        const av = a[key];
+        if (isPlainObject(bv) && isPlainObject(av)) {
+          walk(bv, av, p);
+        } else if (!sameValue(bv, av)) {
+          entries.push({ path: p, kind: 'changed', before: bv, after: av });
+        }
+      }
+    }
+  };
+  walk(before, after, '');
+  return entries.sort((x, y) => x.path.localeCompare(y.path));
 }
 
 /**
@@ -36,7 +70,7 @@ export function diffSettings(
  * otherwise `settings.request`. Returns the object itself (no copy).
  */
 export function effectiveOrRequest(settings: ImageSettings): Record<string, unknown> {
-  throw new Error('not implemented');
+  return settings.effective !== null ? settings.effective : settings.request;
 }
 
 /**
@@ -46,5 +80,18 @@ export function effectiveOrRequest(settings: ImageSettings): Record<string, unkn
  * An empty nested object yields one row with the empty object as value.
  */
 export function flattenSettings(obj: Record<string, unknown>): [string, unknown][] {
-  throw new Error('not implemented');
+  const rows: [string, unknown][] = [];
+  const walk = (o: Record<string, unknown>, path: string): void => {
+    for (const key of Object.keys(o)) {
+      const p = path === '' ? key : `${path}.${key}`;
+      const v = o[key];
+      if (isPlainObject(v) && Object.keys(v).length > 0) {
+        walk(v, p);
+      } else {
+        rows.push([p, v]);
+      }
+    }
+  };
+  walk(obj, '');
+  return rows.sort((x, y) => x[0].localeCompare(y[0]));
 }
