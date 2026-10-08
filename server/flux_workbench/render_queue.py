@@ -3,7 +3,9 @@
 import asyncio
 import copy
 import logging
+import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, Protocol
@@ -44,11 +46,15 @@ class Job:
 class RenderQueue:
     """FIFO queue across all projects. One ``run_worker`` task processes jobs one by one."""
 
-    def __init__(self, store: ProjectStore, renderer: Renderer) -> None:
-        """Keep ``store`` and ``renderer``; create ``self._jobs: list[Job] = []`` (all jobs in
-        submit order, for listing) and ``self._queue: asyncio.Queue[Job] = asyncio.Queue()``."""
+    def __init__(
+        self, store: ProjectStore, renderer: Renderer, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        """Keep ``store``, ``renderer`` and ``clock`` (seconds, monotonic; tests inject a fake);
+        create ``self._jobs: list[Job] = []`` (all jobs in submit order, for listing) and
+        ``self._queue: asyncio.Queue[Job] = asyncio.Queue()``."""
         self.store = store
         self.renderer = renderer
+        self.clock = clock
         self._jobs: list[Job] = []
         self._queue: asyncio.Queue[Job] = asyncio.Queue()
 
@@ -94,10 +100,15 @@ class RenderQueue:
         """Run one job; never raises.
 
         - If ``job.status == "cancelled"``: return without calling the renderer.
-        - Set ``status = "running"``; ``result = await self.renderer.render(job.request)``.
+        - Set ``status = "running"``; ``start = self.clock()``;
+          ``result = await self.renderer.render(job.request)``;
+          ``render_seconds = round(self.clock() - start, 1)`` - pure bridge time, measured
+          directly around the ``render`` call (NOT including queue wait or saving).
         - ``n = self.store.save_render(job.project_id, result.png,
-          {"request": job.request, "effective": result.effective})``;
-          then ``image_n = n``, ``status = "done"``.
+          {"request": job.request, "effective": result.effective,
+          "render_seconds": render_seconds})``; then ``image_n = n``, ``status = "done"``.
+        - Errors (nothing is saved, no ``render_seconds`` anywhere):
+          TODO(WP1): measuring and ``render_seconds`` are not implemented yet.
         - ``BridgeError`` -> ``status = "error"``, ``error = str(exc)``.
         - ``NotFound`` / ``ProjectError`` (project deleted meanwhile) ->
           ``status = "error"``, ``error = f"Projekt nicht gefunden: {job.project_id}"``.

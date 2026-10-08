@@ -10,7 +10,7 @@ const PID = '20261007-x';
 
 /** Settings with an empty comment (shorthand for the fixtures below). */
 function s(request: Record<string, unknown>, effective: Record<string, unknown> | null) {
-  return { request, effective, comment: '' } satisfies ImageSettings;
+  return { request, effective, comment: '', render_seconds: null } satisfies ImageSettings;
 }
 
 /** In-memory fake of the server. */
@@ -106,7 +106,7 @@ describe('WorkbenchStore', () => {
     expect(api.calls).not.toContain('createProject');
   });
 
-  it('selecting a project with images selects the last one and clones its request', async () => {
+  it('selecting a project with images selects the last one and loads its request', async () => {
     const { store, api } = setup();
     api.images[PID] = [1, 2];
     api.settings[`${PID}/1`] = s({ prompt: 'a', steps: 1 }, null);
@@ -115,45 +115,194 @@ describe('WorkbenchStore', () => {
     expect(store.images()).toEqual([1, 2]);
     expect(store.selectedImage()).toBe(2);
     expect(store.form()).toEqual({ prompt: 'b', steps: 2 });
+    expect(store.formDirty()).toBe(false);
   });
 
-  it('diffs against the predecessor in the list, not n-1', async () => {
+  it('diffs against the predecessor in the list, not n-1, without prompt/negative', async () => {
     const { store, api } = setup();
     api.images[PID] = [1, 3];
-    api.settings[`${PID}/1`] = s({}, { steps: 32, hires: { denoise: 0.4 } });
-    api.settings[`${PID}/3`] = s({}, { steps: 40, hires: { denoise: 0.5 } });
+    api.settings[`${PID}/1`] = s(
+      { prompt: 'a red car' },
+      { prompt: 'a red car', negative: '', steps: 32, hires: { denoise: 0.4 } },
+    );
+    api.settings[`${PID}/3`] = s(
+      { prompt: 'a green car' },
+      { prompt: 'a green car', negative: 'blurry', steps: 40, hires: { denoise: 0.5 } },
+    );
     await store.selectProject(PID);
     await store.selectImage(3);
     expect(store.diff()).toEqual([
       { path: 'hires.denoise', kind: 'changed', before: 0.4, after: 0.5 },
       { path: 'steps', kind: 'changed', before: 32, after: 40 },
     ]);
+    expect(store.previousSettings()?.request).toEqual({ prompt: 'a red car' });
     await store.selectImage(1);
     expect(store.diff()).toEqual([]);
+    expect(store.previousSettings()).toBeNull();
   });
 
-  it('selectImage does not change the form; clone and adoptSeed do', async () => {
+  it('clicking a thumbnail restores the exact request of that image', async () => {
     const { store, api } = setup();
-    api.images[PID] = [1];
-    api.settings[`${PID}/1`] = s({ prompt: 'p', seed: null }, { seed: 77 });
+    api.images[PID] = [1, 2];
+    const first = { prompt: 'red car', negative: 'blurry', seed: null, steps: 20, lora2: false };
+    api.settings[`${PID}/1`] = { ...s(first, { seed: 77 }), comment: 'Notiz', render_seconds: 9 };
+    api.settings[`${PID}/2`] = s({ prompt: 'b' }, null);
     await store.selectProject(PID);
-    store.form.set({ prompt: 'edited' });
     await store.selectImage(1);
-    expect(store.form()).toEqual({ prompt: 'edited' });
-    store.cloneSelected();
-    expect(store.form()).toEqual({ prompt: 'p', seed: null });
+    expect(store.form()).toEqual(first);
+    expect(store.formBaseline()).toEqual(first);
+    expect(store.form()).not.toBe(store.formBaseline());
+    expect(JSON.stringify(store.form())).not.toContain('Notiz');
     store.adoptSeed();
     expect(store.form().seed).toBe(77);
   });
 
-  it('cloning never copies the comment into the form', async () => {
+  it('a missing prompt in the stored request becomes an empty string', async () => {
     const { store, api } = setup();
-    api.images[PID] = [3];
-    api.settings[`${PID}/3`] = { ...s({ prompt: 'p' }, null), comment: 'Bus verwaschen' };
+    api.images[PID] = [1];
+    api.settings[`${PID}/1`] = s({ steps: 3 }, null);
     await store.selectProject(PID);
-    store.cloneSelected();
-    expect(store.form()).toEqual({ prompt: 'p' });
-    expect(JSON.stringify(store.form())).not.toContain('Bus verwaschen');
+    expect(store.form()).toEqual({ steps: 3, prompt: '' });
+  });
+
+  describe('unrendered changes', () => {
+    async function dirtyStore() {
+      const ctx = setup();
+      ctx.api.images[PID] = [1, 2];
+      ctx.api.settings[`${PID}/1`] = s({ prompt: 'one' }, null);
+      ctx.api.settings[`${PID}/2`] = s({ prompt: 'two' }, null);
+      await ctx.store.selectProject(PID);
+      ctx.store.form.update((f) => ({ ...f, prompt: 'edited' }));
+      return ctx;
+    }
+
+    it('form changes make the form dirty, an equal form is clean again', async () => {
+      const { store } = await dirtyStore();
+      expect(store.formDirty()).toBe(true);
+      store.form.update((f) => ({ ...f, prompt: 'two' }));
+      expect(store.formDirty()).toBe(false);
+    });
+
+    it('asks before another image is loaded; cancel keeps everything', async () => {
+      const { store } = await dirtyStore();
+      const asked: string[] = [];
+      store.confirmFn = (m) => {
+        asked.push(m);
+        return false;
+      };
+      await store.selectImage(1);
+      expect(asked).toEqual(['Ungerenderte Änderungen verwerfen?']);
+      expect(store.selectedImage()).toBe(2);
+      expect(store.form().prompt).toBe('edited');
+    });
+
+    it('OK discards the changes and loads the image', async () => {
+      const { store } = await dirtyStore();
+      store.confirmFn = () => true;
+      await store.selectImage(1);
+      expect(store.selectedImage()).toBe(1);
+      expect(store.form()).toEqual({ prompt: 'one' });
+      expect(store.formDirty()).toBe(false);
+    });
+
+    it('asks before switching or creating a project', async () => {
+      const { store, api } = await dirtyStore();
+      api.images['20261001-other'] = [];
+      store.confirmFn = () => false;
+      await store.selectProject('20261001-other');
+      expect(store.selectedProject()).toBe(PID);
+      await store.createProject('Neu');
+      expect(api.calls).not.toContain('createProject');
+    });
+
+    it('creating a project asks only once', async () => {
+      const { store } = await dirtyStore();
+      let count = 0;
+      store.confirmFn = () => {
+        count++;
+        return true;
+      };
+      await store.createProject('Neu');
+      expect(count).toBe(1);
+      expect(store.selectedProject()).toBe('20261007-Neu');
+      expect(store.form()).toEqual(DEFAULT_REQUEST);
+      expect(store.formDirty()).toBe(false);
+    });
+
+    it('never asks without changes', async () => {
+      const { store, api } = setup();
+      api.images[PID] = [1, 2];
+      api.settings[`${PID}/1`] = s({ prompt: 'one' }, null);
+      api.settings[`${PID}/2`] = s({ prompt: 'two' }, null);
+      store.confirmFn = () => {
+        throw new Error('must not ask');
+      };
+      await store.selectProject(PID);
+      await store.selectImage(1);
+      expect(store.form()).toEqual({ prompt: 'one' });
+    });
+
+    it('after Rendern the form counts as rendered', async () => {
+      const { store } = await dirtyStore();
+      await store.submit();
+      expect(store.formDirty()).toBe(false);
+      expect(store.formBaseline().prompt).toBe('edited');
+    });
+
+    it('a finished render shows the new image but keeps a dirty form, without asking', async () => {
+      const { store, api } = await dirtyStore();
+      store.confirmFn = () => {
+        throw new Error('must not ask');
+      };
+      api.jobs = [makeJob('j1', 'running', null)];
+      await store.refreshJobs();
+      api.jobs = [makeJob('j1', 'done', 3)];
+      api.images[PID] = [1, 2, 3];
+      api.settings[`${PID}/3`] = s({ prompt: 'three' }, null);
+      await store.refreshJobs();
+      expect(store.selectedImage()).toBe(3);
+      expect(store.form().prompt).toBe('edited');
+      expect(store.formDirty()).toBe(true);
+    });
+
+    it('a finished render loads its request when the form is clean', async () => {
+      const { store, api } = setup();
+      await store.selectProject(PID);
+      api.jobs = [makeJob('j1', 'running', null)];
+      await store.refreshJobs();
+      api.jobs = [makeJob('j1', 'done', 1)];
+      api.images[PID] = [1];
+      api.settings[`${PID}/1`] = s({ prompt: 'p', steps: 7 }, null);
+      await store.refreshJobs();
+      expect(store.form()).toEqual({ prompt: 'p', steps: 7 });
+    });
+  });
+
+  describe('prompt word diff', () => {
+    it('diffs prompt and negative against the predecessor', async () => {
+      const { store, api } = setup();
+      api.images[PID] = [1, 2];
+      api.settings[`${PID}/1`] = s({ prompt: 'a red car' }, null);
+      api.settings[`${PID}/2`] = s({ prompt: 'a green car', negative: 'blurry' }, null);
+      await store.selectProject(PID);
+      expect(store.promptDiff()).toEqual([
+        { kind: 'same', text: 'a' },
+        { kind: 'removed', text: 'red' },
+        { kind: 'added', text: 'green' },
+        { kind: 'same', text: 'car' },
+      ]);
+      expect(store.negativeDiff()).toEqual([{ kind: 'added', text: 'blurry' }]);
+    });
+
+    it('first image: plain text; nothing selected: empty', async () => {
+      const { store, api } = setup();
+      expect(store.promptDiff()).toEqual([]);
+      api.images[PID] = [1];
+      api.settings[`${PID}/1`] = s({ prompt: 'a car' }, null);
+      await store.selectProject(PID);
+      expect(store.promptDiff()).toEqual([{ kind: 'same', text: 'a car' }]);
+      expect(store.negativeDiff()).toEqual([]);
+    });
   });
 
   it('submit sends the form for the selected project and validates', async () => {
@@ -205,6 +354,8 @@ describe('WorkbenchStore', () => {
     expect(store.selectedImage()).toBeNull();
     expect(store.images()).toEqual([]);
     expect(store.form()).toEqual(DEFAULT_REQUEST);
+    expect(store.formBaseline()).toEqual(DEFAULT_REQUEST);
+    expect(store.previousSettings()).toBeNull();
   });
 
   it('opens images and builds urls only with a selected project', async () => {

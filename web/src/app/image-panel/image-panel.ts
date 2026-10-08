@@ -1,18 +1,47 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 
+import { formatDuration } from '../format';
 import { effectiveOrRequest, flattenSettings } from '../settings-diff';
 import { WorkbenchStore } from '../workbench.store';
 
 /**
  * Column "Bild" (issue #11, mockup `docs/ui-mockup.html`, first card under the thumbnails):
  * selected image info, diff chips, comment, collapsed table of all settings.
- * Replaces the former `SettingsPanel`; the existing template/CSS are the starting point.
+ *
+ * CHANGES FOR #19 (WP2 implements template, CSS and the stubs below; the rest stays as it is):
+ * - Head: REMOVE the "Klonen" button (`data-testid="clone"`) - clicking a thumbnail now loads
+ *   the form. After the seed span add `<span class="hint" data-testid="render-time">·
+ *   {{ renderTime() }}</span>` (always shown, `–` without a measurement).
+ * - Directly under the head row: `<img data-testid="preview" class="preview"
+ *   [src]="store.imageUrl(store.selectedImage()!)" [alt]="'Bild ' + store.selectedImage()"
+ *   title="Klicken für große Ansicht" (click)="openLightbox()">`.
+ *   CSS: `display: block; max-width: 100%; max-height: 160px; object-fit: contain;
+ *   border-radius: 8px; cursor: zoom-in; margin: 10px 0;`.
+ * - Before the diff chips: `<h2>Prompt</h2>` + `<p data-testid="prompt-diff" class="words">`
+ *   with one `<span [class]="seg.kind">{{ seg.text }}</span>` per segment of
+ *   `store.promptDiff()` (track `$index`), separated by a single space (put `{{ ' ' }}` between
+ *   the spans or use CSS `gap` - the test reads `textContent` of each span only). Then the same
+ *   for "Negative Prompt" with `data-testid="negative-diff"` and `store.negativeDiff()`; if that
+ *   list is empty show `<p class="hint" data-testid="negative-diff">leer</p>` instead.
+ *   CSS: `.words { font-family: var(--mono); font-size: 12px; line-height: 1.6; white-space:
+ *   normal; }` `.added { color: var(--add); }` `.removed { color: var(--rem);
+ *   text-decoration: line-through; }`.
+ * - Diff chips no longer contain `prompt`/`negative` (the store filters them).
+ * - Lightbox, rendered at the END of the template, only while `lightboxOpen()`:
+ *   `<div data-testid="lightbox" class="lightbox" (click)="closeLightbox()">` containing
+ *   `<img [src]="store.imageUrl(store.selectedImage()!)" [alt]="'Bild ' + store.selectedImage()"
+ *   (click)="$event.stopPropagation()">` and `<button type="button" data-testid="lightbox-close"
+ *   class="close" title="Schließen (Esc)" (click)="closeLightbox()">×</button>`.
+ *   CSS: `.lightbox { position: fixed; inset: 0; z-index: 100; background: color-mix(in srgb,
+ *   var(--bg) 88%, transparent); display: flex; align-items: center; justify-content: center;
+ *   padding: 32px; cursor: zoom-out; }` `.lightbox img { max-width: 100%; max-height: 100%;
+ *   object-fit: contain; border-radius: 10px; cursor: default; }` `.close { position: absolute;
+ *   top: 16px; right: 16px; font-size: 22px; }`.
  *
  * Template (`image-panel.html`) - required markup (tests use the `data-testid`s):
  * - No `store.settings()`: only `<p class="empty">Bild auswählen</p>`.
  * - Head row: `<h3>Bild {{ store.selectedImage() }}` plus, if `seed()` is a number,
  *   `<span class="hint">· Seed {{ seed() }}</span>`; on the right
- *   `<button type="button" data-testid="clone">Klonen</button>` -> `store.cloneSelected()` and
  *   `<button type="button" data-testid="adopt-seed" class="ghost">Seed übernehmen</button>` ->
  *   `store.adoptSeed()` (disabled when `seed()` is null).
  * - `<h2>Änderungen zu Bild {{ previous() }}</h2>` (only if `previous()` is not null) and
@@ -48,6 +77,30 @@ export class ImagePanel {
 
   /** `true` while the comment textarea has unsaved typing (set by `onCommentInput`). */
   readonly commentDirty = signal(false);
+
+  /** Whether the large view (lightbox) is shown. */
+  readonly lightboxOpen = signal(false);
+
+  /** `formatDuration(store.settings()?.render_seconds ?? null)`. */
+  readonly renderTime = computed<string>(() => {
+    throw new Error('not implemented');
+  });
+
+  /** Show the lightbox (`lightboxOpen.set(true)`); no-op without a selected image. */
+  openLightbox(): void {
+    throw new Error('not implemented');
+  }
+
+  /** Hide the lightbox (`lightboxOpen.set(false)`). */
+  closeLightbox(): void {
+    throw new Error('not implemented');
+  }
+
+  /** Esc anywhere on the page closes the lightbox (calls `closeLightbox()`). */
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    throw new Error('not implemented');
+  }
 
   /** `flattenSettings(effectiveOrRequest(settings))`, or `[]` without settings. */
   readonly rows = computed<[string, unknown][]>(() => {

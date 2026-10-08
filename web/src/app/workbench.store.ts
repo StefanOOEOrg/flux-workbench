@@ -12,6 +12,7 @@ import {
   RenderRequest,
 } from './models';
 import { diffSettings, effectiveOrRequest } from './settings-diff';
+import { WordSegment, diffWords } from './word-diff';
 
 /**
  * All UI state as signals plus the actions the components call.
@@ -32,10 +33,20 @@ export class WorkbenchStore {
   readonly selectedImage = signal<number | null>(null);
   /** Settings of the selected image (null if none selected). */
   readonly settings = signal<ImageSettings | null>(null);
-  /** Diff selected image vs. its predecessor in `images` ([] for the first image). */
+  /** Diff selected image vs. its predecessor in `images` ([] for the first image).
+   *  Since #19 WITHOUT the paths `prompt` and `negative` (they get their own word diff). */
   readonly diff = signal<DiffEntry[]>([]);
+  /** Settings of the predecessor of the selected image (null: first image or not loadable). */
+  readonly previousSettings = signal<ImageSettings | null>(null);
   /** Current content of the parameter form. */
   readonly form = signal<RenderRequest>(structuredClone(DEFAULT_REQUEST));
+  /**
+   * Last "clean" form state: set together with `form` whenever the form is loaded from an image
+   * or reset to the defaults, and to a copy of `form()` after a successful `submit()`.
+   */
+  readonly formBaseline = signal<RenderRequest>(structuredClone(DEFAULT_REQUEST));
+  /** Injected for tests; asks before unrendered form changes are discarded. */
+  confirmFn: (message: string) => boolean = (m) => window.confirm(m);
   readonly jobs = signal<Job[]>([]);
   readonly error = signal<string | null>(null);
   /** Incremented after every reload of `images`; used as cache buster for thumbnails. */
@@ -109,6 +120,49 @@ export class WorkbenchStore {
     return this.form().prompt !== baseline;
   });
 
+  /**
+   * `true` if the form has unrendered changes:
+   * `diffSettings(formBaseline() as Record, form() as Record).length > 0` (reuse the existing
+   * settings diff; cast via `as unknown as Record<string, unknown>`).
+   */
+  readonly formDirty = computed<boolean>(() => {
+    throw new Error('not implemented');
+  });
+
+  /**
+   * Word diff of the prompt for the "Bild" column:
+   * `diffWords(prev, current)` with `current` = `settings().request['prompt']` and
+   * `prev` = `previousSettings().request['prompt']`; a missing / non-string value counts as `''`.
+   * `prev` is `null` (-> all words `same`) when `previousSettings()` is null.
+   * `[]` without `settings()`.
+   */
+  readonly promptDiff = computed<WordSegment[]>(() => {
+    throw new Error('not implemented');
+  });
+
+  /** Same as `promptDiff`, for `request['negative']`. */
+  readonly negativeDiff = computed<WordSegment[]>(() => {
+    throw new Error('not implemented');
+  });
+
+  /**
+   * `true` if no unrendered changes are lost: `!formDirty()`, otherwise the answer of
+   * `confirmFn('Ungerenderte Änderungen verwerfen?')` (exactly this text).
+   */
+  private confirmDiscard(): boolean {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * Put `request` into the form AND the baseline (two separate deep copies, `structuredClone`):
+   * exactly the request as it was sent with "Rendern", NOT merged with `DEFAULT_REQUEST`.
+   * If `prompt` is missing or not a string, set it to `''`. Never copies `comment` or
+   * `render_seconds` (they are not part of `request`).
+   */
+  private loadForm(request: Record<string, unknown>): void {
+    throw new Error('not implemented');
+  }
+
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
     try {
@@ -120,8 +174,11 @@ export class WorkbenchStore {
   }
 
   /**
-   * Create a project, reload the list, then `selectProject(newId)`.
+   * Create a project, reload the list, then select it.
    * Blank `name` (after trim) -> set `error = 'Projektname fehlt'`, no HTTP call.
+   * TODO(WP2, #19): ask BEFORE the HTTP call: if `!confirmDiscard()` return (no project is
+   * created). After creating, open it with `loadProject(id)` (not `selectProject`, so the
+   * question does not come twice).
    */
   async createProject(name: string): Promise<void> {
     if (name.trim() === '') {
@@ -142,6 +199,8 @@ export class WorkbenchStore {
    * Delete the project (the component asks for confirmation before), reload the list.
    * If it was the selected project: `selectedProject`, `selectedImage`, `settings` -> null,
    * `images` and `diff` -> [], `form` -> fresh copy of `DEFAULT_REQUEST`.
+   * TODO(WP2, #19): additionally `previousSettings` -> null and `formBaseline` -> fresh copy of
+   * `DEFAULT_REQUEST` (no discard question - deleting was already confirmed).
    */
   async deleteProject(id: string): Promise<void> {
     try {
@@ -163,84 +222,50 @@ export class WorkbenchStore {
   }
 
   /**
-   * Select project `id`: set `selectedProject`, load `images` (increment `imagesVersion`).
-   * - No images: `selectedImage`/`settings` -> null, `diff` -> [],
-   *   `form` -> `structuredClone(DEFAULT_REQUEST)`.
-   * - Otherwise: `await selectImage(last image)` and then `cloneSelected()`, so the form
-   *   continues from the newest render.
+   * User selects project `id` (click in the project list). If `!confirmDiscard()`: return
+   * without any change. Otherwise `await loadProject(id)`.
    */
   async selectProject(id: string): Promise<void> {
-    try {
-      this.selectedProject.set(id);
-      const list = await firstValueFrom(this.api.listImages(id));
-      this.images.set(list);
-      this.imagesVersion.update((v) => v + 1);
-      if (list.length === 0) {
-        this.selectedImage.set(null);
-        this.settings.set(null);
-        this.diff.set([]);
-        this.form.set(structuredClone(DEFAULT_REQUEST));
-        this.error.set(null);
-        return;
-      }
-      await this.selectImage(list[list.length - 1]);
-      this.cloneSelected();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    throw new Error('not implemented');
   }
 
   /**
-   * Select image `n` of the selected project (no-op without a selected project).
-   * Load its settings into `settings`. Predecessor = the element before `n` in `images()`
-   * (not necessarily `n - 1`). If there is one, load its settings too and set
-   * `diff = diffSettings(effectiveOrRequest(prev), effectiveOrRequest(current))`, else `diff = []`.
-   * If the predecessor's settings cannot be loaded (e.g. 404), use `diff = []` without error.
-   * Does NOT change `form`.
+   * Load project `id` WITHOUT asking: set `selectedProject`, load `images` (increment
+   * `imagesVersion`).
+   * - No images: `selectedImage`/`settings`/`previousSettings` -> null, `diff` -> [],
+   *   `loadForm(DEFAULT_REQUEST)` (form and baseline = defaults), `error` -> null.
+   * - Otherwise: `if (await showImage(last image)) loadForm(settings()!.request)`, so the form
+   *   continues from the newest render.
+   * Errors like everywhere else.
+   */
+  private async loadProject(id: string): Promise<void> {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * User clicks thumbnail `n`: restore the state of the moment "Rendern" was clicked for it.
+   * No-op without a selected project. If `!confirmDiscard()`: return without any change
+   * (selection, settings and form stay). Otherwise
+   * `if (await showImage(n)) loadForm(settings()!.request)`.
+   * Clicking the already selected image also reloads the form (after the same question).
    */
   async selectImage(n: number): Promise<void> {
-    const project = this.selectedProject();
-    if (project === null) {
-      return;
-    }
-    try {
-      const settings = await firstValueFrom(this.api.getSettings(project, n));
-      this.settings.set(settings);
-      this.selectedImage.set(n);
-      this.error.set(null);
-      const images = this.images();
-      const idx = images.indexOf(n);
-      const prev = idx > 0 ? images[idx - 1] : null;
-      if (prev === null) {
-        this.diff.set([]);
-        return;
-      }
-      try {
-        const prevSettings = await firstValueFrom(this.api.getSettings(project, prev));
-        this.diff.set(diffSettings(effectiveOrRequest(prevSettings), effectiveOrRequest(settings)));
-      } catch {
-        this.diff.set([]);
-      }
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    throw new Error('not implemented');
   }
 
   /**
-   * "Klonen": `form = structuredClone(settings().request) as RenderRequest` - exactly the
-   * request of the selected image, NOT merged with `DEFAULT_REQUEST`. If `prompt` is missing
-   * or not a string, set it to `''`. No-op if `settings()` is null.
+   * Show image `n` in the "Bild" column WITHOUT touching `form` / `formBaseline`.
+   * Returns `true` on success, `false` on error or without a selected project.
+   * Load its settings into `settings`, set `selectedImage = n`, `error = null`.
+   * Predecessor = the element before `n` in `images()` (not necessarily `n - 1`):
+   * - none: `previousSettings = null`, `diff = []`;
+   * - load OK: `previousSettings = prev`, `diff = diffSettings(effectiveOrRequest(prev),
+   *   effectiveOrRequest(current))` WITHOUT the entries with path `prompt` or `negative`;
+   * - load fails (e.g. 404): `previousSettings = null`, `diff = []`, no error, still `true`.
+   * If the settings of `n` cannot be loaded: `error` set, return `false`, nothing else changes.
    */
-  cloneSelected(): void {
-    const settings = this.settings();
-    if (settings === null) {
-      return;
-    }
-    const request = structuredClone(settings.request) as unknown as RenderRequest;
-    if (typeof request.prompt !== 'string') {
-      request.prompt = '';
-    }
-    this.form.set(request);
+  private async showImage(n: number): Promise<boolean> {
+    throw new Error('not implemented');
   }
 
   /**
@@ -259,6 +284,8 @@ export class WorkbenchStore {
    * Submit `form()` for the selected project, then `refreshJobs()`.
    * No selected project -> `error = 'Kein Projekt ausgewählt'`, no HTTP call.
    * Empty prompt (after trim) -> `error = 'Prompt fehlt'`, no HTTP call.
+   * TODO(WP2, #19): after a SUCCESSFUL `submitJob` (before `refreshJobs`) set
+   * `formBaseline = structuredClone(form())` - the form now counts as rendered. Not on errors.
    */
   async submit(): Promise<void> {
     const project = this.selectedProject();
@@ -294,7 +321,11 @@ export class WorkbenchStore {
    * Poll target (called every 2 s by `App`): `jobs.set(await listJobs())`.
    * If a job of the selected project changed to `done` since the previous poll (job id was
    * not `done` in the old `jobs()` list, or was not in it), reload `images` (increment
-   * `imagesVersion`) and `await selectImage(job.image_n)` of the newest such job.
+   * `imagesVersion`) and show the image of the newest such job.
+   * TODO(WP2, #19): this automatic selection must NEVER ask (`confirmFn`) and must NOT
+   * overwrite unrendered changes: instead of `selectImage(job.image_n)` call
+   * `showImage(job.image_n)`, and only if that returned `true` AND `!formDirty()` also
+   * `loadForm(settings()!.request)`. With a dirty form, form and baseline stay untouched.
    * Errors: set `error` like everywhere else. EXCEPTION to the class rule: a successful poll must
    * NOT reset `error` to null (it runs every 2 s and would hide every message within 2 s).
    */
