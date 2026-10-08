@@ -1,0 +1,73 @@
+:host {
+  display: block;
+}
+
+.jobs {
+  display: grid;
+  gap: 6px;
+}
+
+.job {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--border);
+}
+
+.job .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.job .p {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 3px;
+}
+
+.job.queued {
+  border-left-color: var(--muted);
+}
+
+.job.running {
+  border-left-color: var(--warn);
+}
+
+.job.done {
+  border-left-color: var(--ok);
+}
+
+.job.error {
+  border-left-color: var(--err);
+}
+
+.job .err {
+  color: var(--err);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.job.running .badge {
+  color: var(--warn);
+}
+
+.job.done .badge {
+  color: var(--ok);
+}
+
+.job.error .badge {
+  color: var(--err);
+}

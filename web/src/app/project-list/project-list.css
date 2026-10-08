@@ -1,0 +1,72 @@
+:host {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.newproj {
+  display: flex;
+  gap: 6px;
+}
+
+.newproj input {
+  flex: 1;
+  min-width: 0;
+}
+
+.newproj button {
+  width: 30px;
+  padding: 5px 0;
+}
+
+.search {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.projects {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0 2px 0 0;
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.projects li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 9px;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.projects li:hover {
+  background: var(--panel-2);
+}
+
+.projects li.selected {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.projects small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.del {
+  opacity: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0 4px;
+}
+
+.projects li:hover .del {
+  opacity: 1;
+}
