@@ -183,6 +183,26 @@ describe('ParamForm', () => {
       expect(button.type).toBe('button');
     }
   });
+
+  it('selects show the current form values', () => {
+    const { store, fixture, one } = render(ParamForm);
+    fixture.detectChanges();
+    expect((one('f-model') as HTMLSelectElement).value).toBe('flux-lora');
+    expect((one('f-preset') as HTMLSelectElement).value).toBe('realistic');
+
+    store.form.update((f) => ({ ...f, preset: 'fast', model: 'flux' }));
+    fixture.detectChanges();
+    expect((one('f-model') as HTMLSelectElement).value).toBe('flux');
+    expect((one('f-preset') as HTMLSelectElement).value).toBe('fast');
+
+    store.form.update((f) => {
+      const next = { ...f };
+      delete next.preset;
+      return next;
+    });
+    fixture.detectChanges();
+    expect((one('f-preset') as HTMLSelectElement).value).toBe('');
+  });
 });
 
 describe('QueuePanel', () => {

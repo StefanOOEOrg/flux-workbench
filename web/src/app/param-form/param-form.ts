@@ -40,6 +40,10 @@ export type TextField = 'prompt' | 'model' | 'preset' | 'sampler' | 'scheduler' 
  * All setters build a NEW object via `store.form.update(f => ({ ...f, ... }))`.
  * Every `<button>` in this template MUST have `type="button"`: the controls sit inside a
  * `<form>`, and a default (`submit`) button would reload the whole page in the browser.
+ * `<select>`s (`model`, `preset`): do NOT bind `[value]` on the `<select>` (it is applied before
+ * the `@for` options exist, so the select shows the wrong option). Instead bind
+ * `[selected]="m === store.form().model"` on each `<option>` (empty option:
+ * `[selected]="store.form().model === undefined"`; same for `preset`).
  */
 @Component({
   selector: 'app-param-form',
