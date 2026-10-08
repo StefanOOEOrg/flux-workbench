@@ -34,11 +34,11 @@ export class PromptPanel {
 
   /** `store.form.update(f => ({ ...f, prompt: value }))` (value as-is, no trimming). */
   setPrompt(value: string): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => ({ ...f, prompt: value }));
   }
 
   /** `store.form.update(f => ({ ...f, negative: value }))`; `''` is kept (= negative off). */
   setNegative(value: string): void {
-    throw new Error('not implemented');
+    this.store.form.update((f) => ({ ...f, negative: value }));
   }
 }
