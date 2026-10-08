@@ -1,1 +1,29 @@
-<!-- TODO(sw-developer): markup as described in prompt-panel.ts (mockup: docs/ui-mockup.html) -->
+<h2>
+  Prompt
+  @if (store.promptModified()) {
+    <span data-testid="prompt-modified" class="modified">· geändert</span>
+  }
+</h2>
+<textarea
+  data-testid="f-prompt"
+  class="prompt"
+  [value]="store.form().prompt"
+  (input)="setPrompt($any($event.target).value)"
+></textarea>
+<h2>Negative Prompt</h2>
+<textarea
+  data-testid="f-negative"
+  class="negative"
+  placeholder="leer = aus (sonst echte CFG, ~1.5× Zeit)"
+  [value]="store.form().negative ?? ''"
+  (input)="setNegative($any($event.target).value)"
+></textarea>
+<button
+  type="button"
+  data-testid="submit"
+  class="primary"
+  [disabled]="store.selectedProject() === null"
+  (click)="store.submit()"
+>
+  ▶ Rendern · Bild {{ store.nextImageNumber() }}
+</button>

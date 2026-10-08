@@ -74,7 +74,12 @@ export class ImagePanel {
    * or `null` if nothing is selected or it is the first image.
    */
   readonly previous = computed<number | null>(() => {
-    throw new Error('not implemented');
+    const selected = this.store.selectedImage();
+    if (selected === null) {
+      return null;
+    }
+    const idx = this.store.images().indexOf(selected);
+    return idx > 0 ? this.store.images()[idx - 1] : null;
   });
 
   /**
@@ -82,12 +87,15 @@ export class ImagePanel {
    * `'· gespeichert'` if the stored comment (`store.settings()?.comment`) is non-empty, else `''`.
    */
   readonly commentState = computed<string>(() => {
-    throw new Error('not implemented');
+    if (this.commentDirty()) {
+      return '· ungespeichert';
+    }
+    return this.store.settings()?.comment ? '· gespeichert' : '';
   });
 
   /** Mark the comment as having unsaved changes (`commentDirty.set(true)`). */
   onCommentInput(): void {
-    throw new Error('not implemented');
+    this.commentDirty.set(true);
   }
 
   /**
@@ -95,7 +103,10 @@ export class ImagePanel {
    * `store.error()` is null (on error the text stays marked as unsaved).
    */
   async onCommentBlur(value: string): Promise<void> {
-    throw new Error('not implemented');
+    await this.store.saveComment(value);
+    if (this.store.error() === null) {
+      this.commentDirty.set(false);
+    }
   }
 
   /**
