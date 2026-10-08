@@ -10,28 +10,20 @@
 
   <label>
     Modell
-    <select
-      data-testid="f-model"
-      [value]="store.form().model ?? ''"
-      (input)="setText('model', $any($event.target).value)"
-    >
-      <option value="">– Default –</option>
+    <select data-testid="f-model" (input)="setText('model', $any($event.target).value)">
+      <option value="" [selected]="store.form().model === undefined">– Default –</option>
       @for (m of models; track m) {
-        <option [value]="m">{{ m }}</option>
+        <option [value]="m" [selected]="m === store.form().model">{{ m }}</option>
       }
     </select>
   </label>
 
   <label>
     Preset
-    <select
-      data-testid="f-preset"
-      [value]="store.form().preset ?? ''"
-      (input)="setText('preset', $any($event.target).value)"
-    >
-      <option value="">– Default –</option>
+    <select data-testid="f-preset" (input)="setText('preset', $any($event.target).value)">
+      <option value="" [selected]="store.form().preset === undefined">– Default –</option>
       @for (p of presets; track p) {
-        <option [value]="p">{{ p }}</option>
+        <option [value]="p" [selected]="p === store.form().preset">{{ p }}</option>
       }
     </select>
   </label>
@@ -225,12 +217,13 @@
   <div class="submit-row">
     <button
       data-testid="submit"
+      type="button"
       [disabled]="store.selectedProject() === null"
       (click)="store.submit()"
     >
       Rendern
     </button>
     <span class="queue-count">{{ store.pendingJobs().length }} in Queue</span>
-    <button data-testid="reset" (click)="resetToDefaults()">Defaults</button>
+    <button data-testid="reset" type="button" (click)="resetToDefaults()">Defaults</button>
   </div>
 </form>
