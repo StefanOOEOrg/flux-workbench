@@ -8,7 +8,11 @@
  * If the id does not match `/^(\d{4})(\d{2})(\d{2})-(.+)$/`: `{ name: id, date: '' }`.
  */
 export function projectLabel(id: string): { name: string; date: string } {
-  throw new Error('not implemented');
+  const m = id.match(/^(\d{4})(\d{2})(\d{2})-(.+)$/);
+  if (m === null) {
+    return { name: id, date: '' };
+  }
+  return { name: m[4], date: `${m[3]}.${m[2]}.${m[1]}` };
 }
 
 /**
@@ -18,10 +22,11 @@ export function projectLabel(id: string): { name: string; date: string } {
  * All parts empty -> `empty` (default `'Defaults'`).
  */
 export function summary(parts: (string | null | undefined)[], empty = 'Defaults'): string {
-  throw new Error('not implemented');
+  const nonEmpty = parts.filter((p) => p !== null && p !== undefined && p !== '');
+  return nonEmpty.length === 0 ? empty : nonEmpty.join(' · ');
 }
 
 /** `1` -> `'1 Bild'`, every other number -> `'<n> Bilder'` (e.g. `'0 Bilder'`, `'12 Bilder'`). */
 export function imageCountLabel(n: number): string {
-  throw new Error('not implemented');
+  return n === 1 ? '1 Bild' : `${n} Bilder`;
 }

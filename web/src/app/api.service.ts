@@ -51,7 +51,10 @@ export class ApiService {
 
   /** `PUT /api/projects/{id}/images/{n}/comment` with body `{comment}` (204, no body). */
   saveComment(projectId: string, n: number, comment: string): Observable<void> {
-    throw new Error('not implemented');
+    return this.http.put<void>(
+      `/api/projects/${encodeURIComponent(projectId)}/images/${n}/comment`,
+      { comment },
+    );
   }
 
   /**
