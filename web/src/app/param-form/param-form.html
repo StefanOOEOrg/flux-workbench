@@ -1,0 +1,229 @@
+<form class="param-form">
+  <label>
+    Prompt
+    <textarea
+      data-testid="f-prompt"
+      [value]="store.form().prompt ?? ''"
+      (input)="setText('prompt', $any($event.target).value)"
+    ></textarea>
+  </label>
+
+  <label>
+    Modell
+    <select data-testid="f-model" (input)="setText('model', $any($event.target).value)">
+      <option value="" [selected]="store.form().model === undefined">– Default –</option>
+      @for (m of models; track m) {
+        <option [value]="m" [selected]="m === store.form().model">{{ m }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Preset
+    <select data-testid="f-preset" (input)="setText('preset', $any($event.target).value)">
+      <option value="" [selected]="store.form().preset === undefined">– Default –</option>
+      @for (p of presets; track p) {
+        <option [value]="p" [selected]="p === store.form().preset">{{ p }}</option>
+      }
+    </select>
+  </label>
+
+  <label>
+    Breite
+    <input
+      data-testid="f-width"
+      type="number"
+      [value]="store.form().width ?? ''"
+      (input)="setNumber('width', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Höhe
+    <input
+      data-testid="f-height"
+      type="number"
+      [value]="store.form().height ?? ''"
+      (input)="setNumber('height', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Seed
+    <input
+      data-testid="f-seed"
+      type="number"
+      placeholder="zufällig"
+      [value]="store.form().seed ?? ''"
+      (input)="setNumber('seed', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Steps
+    <input
+      data-testid="f-steps"
+      type="number"
+      [value]="store.form().steps ?? ''"
+      (input)="setNumber('steps', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Guidance
+    <input
+      data-testid="f-guidance"
+      type="number"
+      step="0.1"
+      [value]="store.form().guidance ?? ''"
+      (input)="setNumber('guidance', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Sampler
+    <input
+      data-testid="f-sampler"
+      type="text"
+      [value]="store.form().sampler ?? ''"
+      (input)="setText('sampler', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Scheduler
+    <input
+      data-testid="f-scheduler"
+      type="text"
+      [value]="store.form().scheduler ?? ''"
+      (input)="setText('scheduler', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    Hires
+    <input
+      data-testid="f-hires"
+      type="checkbox"
+      [checked]="store.form().hires !== false && store.form().hires !== undefined"
+      (change)="setHiresEnabled($any($event.target).checked)"
+    />
+  </label>
+  @if (isObject(store.form().hires)) {
+    <label>
+      Hires scale
+      <input
+        data-testid="f-hires-scale"
+        type="number"
+        [value]="nestedValue('hires', 'scale') ?? ''"
+        (input)="setHires('scale', $any($event.target).value)"
+      />
+    </label>
+    <label>
+      Hires denoise
+      <input
+        data-testid="f-hires-denoise"
+        type="number"
+        [value]="nestedValue('hires', 'denoise') ?? ''"
+        (input)="setHires('denoise', $any($event.target).value)"
+      />
+    </label>
+    <label>
+      Hires steps
+      <input
+        data-testid="f-hires-steps"
+        type="number"
+        [value]="nestedValue('hires', 'steps') ?? ''"
+        (input)="setHires('steps', $any($event.target).value)"
+      />
+    </label>
+  }
+
+  <label>
+    Face fix
+    <input
+      data-testid="f-face_fix"
+      type="checkbox"
+      [checked]="store.form().face_fix !== false && store.form().face_fix !== undefined"
+      (change)="setFaceFixEnabled($any($event.target).checked)"
+    />
+  </label>
+  @if (isObject(store.form().face_fix)) {
+    <label>
+      Face fix steps
+      <input
+        data-testid="f-face_fix-steps"
+        type="number"
+        [value]="nestedValue('face_fix', 'steps') ?? ''"
+        (input)="setFaceFix('steps', $any($event.target).value)"
+      />
+    </label>
+    <label>
+      Face fix denoise
+      <input
+        data-testid="f-face_fix-denoise"
+        type="number"
+        [value]="nestedValue('face_fix', 'denoise') ?? ''"
+        (input)="setFaceFix('denoise', $any($event.target).value)"
+      />
+    </label>
+  }
+
+  <label>
+    Hand fix
+    <input
+      data-testid="f-hand_fix"
+      type="checkbox"
+      [checked]="store.form().hand_fix === true"
+      (change)="setHandFix($any($event.target).checked)"
+    />
+  </label>
+
+  <label>
+    Negative
+    <textarea
+      data-testid="f-negative"
+      [value]="store.form().negative ?? ''"
+      (input)="setText('negative', $any($event.target).value)"
+    ></textarea>
+  </label>
+
+  <label>
+    LoRA strength
+    <input
+      data-testid="f-lora_strength"
+      type="number"
+      min="0"
+      max="2"
+      step="0.05"
+      [value]="store.form().lora_strength ?? ''"
+      (input)="setNumber('lora_strength', $any($event.target).value)"
+    />
+  </label>
+
+  <label>
+    LoRA 2
+    <input
+      data-testid="f-lora2"
+      type="number"
+      min="0"
+      max="2"
+      step="0.05"
+      [value]="store.form().lora2 ?? ''"
+      (input)="setLora2($any($event.target).value)"
+    />
+  </label>
+
+  <div class="submit-row">
+    <button
+      data-testid="submit"
+      type="button"
+      [disabled]="store.selectedProject() === null"
+      (click)="store.submit()"
+    >
+      Rendern
+    </button>
+    <span class="queue-count">{{ store.pendingJobs().length }} in Queue</span>
+    <button data-testid="reset" type="button" (click)="resetToDefaults()">Defaults</button>
+  </div>
+</form>

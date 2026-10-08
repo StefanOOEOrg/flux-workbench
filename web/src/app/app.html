@@ -1,0 +1,20 @@
+@if (store.error() !== null) {
+  <div class="error" data-testid="error">
+    <span>{{ store.error() }}</span>
+    <button (click)="store.error.set(null)">&times;</button>
+  </div>
+}
+
+<main class="layout">
+  <aside class="left">
+    <app-project-list></app-project-list>
+    <app-queue-panel></app-queue-panel>
+  </aside>
+  <section class="right">
+    <app-thumbnail-strip></app-thumbnail-strip>
+    <div class="bottom">
+      <app-settings-panel></app-settings-panel>
+      <app-param-form></app-param-form>
+    </div>
+  </section>
+</main>

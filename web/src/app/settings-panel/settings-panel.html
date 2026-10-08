@@ -1,0 +1,47 @@
+@if (store.settings() === null) {
+  <p>Bild auswählen</p>
+} @else {
+  <header class="head">
+    <h2>Bild {{ store.selectedImage() }}</h2>
+    <div class="actions">
+      <button data-testid="clone" (click)="store.cloneSelected()">Klonen</button>
+      <button data-testid="adopt-seed" [disabled]="seed() === null" (click)="store.adoptSeed()">
+        Seed übernehmen
+      </button>
+    </div>
+  </header>
+
+  <section data-testid="diff">
+    @if (store.diff().length === 0) {
+      <p>
+        @if (store.images().length > 0 && store.images()[0] === store.selectedImage()) {
+          Erstes Bild
+        } @else {
+          Keine Änderungen zum Vorgänger
+        }
+      </p>
+    } @else {
+      <ul class="diff">
+        @for (entry of store.diff(); track entry.path) {
+          <li data-testid="diff-entry" [class]="entry.kind">{{ formatDiff(entry) }}</li>
+        }
+      </ul>
+    }
+  </section>
+
+  <table class="settings">
+    <tbody>
+      @for (row of rows(); track row[0]) {
+        <tr [class.changed]="changedPaths().has(row[0])">
+          <td class="path">{{ row[0] }}</td>
+          <td class="value">{{ formatValue(row[1]) }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+
+  <details>
+    <summary>Gesendeter Request</summary>
+    <pre>{{ requestJson() }}</pre>
+  </details>
+}
