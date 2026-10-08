@@ -55,6 +55,7 @@
 }
 
 .projects small {
+  display: block;
   color: var(--muted);
   font-size: 11px;
 }

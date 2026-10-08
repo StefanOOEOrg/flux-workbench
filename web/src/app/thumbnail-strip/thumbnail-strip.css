@@ -40,7 +40,7 @@
   position: absolute;
   left: 6px;
   top: 6px;
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
   padding: 1px 7px;
   border-radius: 999px;
   font-size: 11px;
