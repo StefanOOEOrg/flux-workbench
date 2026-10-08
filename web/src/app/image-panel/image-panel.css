@@ -10,6 +10,33 @@
   font-size: 15px;
 }
 
+.preview {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  border-radius: 8px;
+  cursor: zoom-in;
+  margin: 10px 0;
+}
+
+.words {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: normal;
+  margin: 0 0 10px;
+}
+
+.added {
+  color: var(--add);
+}
+
+.removed {
+  color: var(--rem);
+  text-decoration: line-through;
+}
+
 .actions {
   display: flex;
   gap: 6px;
@@ -103,4 +130,31 @@ tr.changed td {
 
 tr.changed td:first-child {
   color: var(--chg);
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  cursor: zoom-out;
+}
+
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  cursor: default;
+}
+
+.lightbox .close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 22px;
 }

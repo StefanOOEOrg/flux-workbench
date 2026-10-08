@@ -23,5 +23,52 @@ export interface WordSegment {
  * `[{same 'a'}, {removed 'red'}, {added 'green'}, {same 'car'}, {added 'at night'}]`.
  */
 export function diffWords(before: string | null, after: string): WordSegment[] {
-  throw new Error('not implemented');
+  const words = (t: string): string[] => t.split(/\s+/).filter((w) => w !== '');
+  const b = before === null ? [] : words(before);
+  const a = words(after);
+  if (a.length === 0 && b.length === 0) {
+    return [];
+  }
+  if (before === null) {
+    return [{ kind: 'same', text: a.join(' ') }];
+  }
+  const dp: number[][] = Array.from({ length: b.length + 1 }, () =>
+    new Array<number>(a.length + 1).fill(0),
+  );
+  for (let i = b.length - 1; i >= 0; i--) {
+    for (let j = a.length - 1; j >= 0; j--) {
+      dp[i][j] = b[i] === a[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const segs: WordSegment[] = [];
+  const push = (kind: WordSegment['kind'], word: string): void => {
+    const last = segs[segs.length - 1];
+    if (last !== undefined && last.kind === kind) {
+      last.text += ` ${word}`;
+    } else {
+      segs.push({ kind, text: word });
+    }
+  };
+  let i = 0;
+  let j = 0;
+  while (i < b.length && j < a.length) {
+    if (b[i] === a[j]) {
+      push('same', b[i]);
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      push('removed', b[i]);
+      i++;
+    } else {
+      push('added', a[j]);
+      j++;
+    }
+  }
+  for (; i < b.length; i++) {
+    push('removed', b[i]);
+  }
+  for (; j < a.length; j++) {
+    push('added', a[j]);
+  }
+  return segs;
 }

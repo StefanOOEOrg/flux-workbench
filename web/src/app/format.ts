@@ -38,5 +38,14 @@ export function imageCountLabel(n: number): string {
  * 60 -> `'1:00 min'`, 59.6 -> `'1:00 min'`, 3725 -> `'62:05 min'`).
  */
 export function formatDuration(seconds: number | null): string {
-  throw new Error('not implemented');
+  if (seconds === null) {
+    return '–';
+  }
+  const total = Math.round(seconds);
+  if (total < 60) {
+    return `${total} s`;
+  }
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')} min`;
 }

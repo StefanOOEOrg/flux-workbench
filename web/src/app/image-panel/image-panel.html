@@ -7,6 +7,7 @@
       @if (seed() !== null) {
         <span class="hint">· Seed {{ seed() }}</span>
       }
+      <span class="hint" data-testid="render-time">· {{ renderTime() }}</span>
     </h3>
     <div class="actions">
       <button
@@ -20,6 +21,41 @@
       </button>
     </div>
   </div>
+
+  <img
+    data-testid="preview"
+    class="preview"
+    tabindex="0"
+    [src]="store.imageUrl(store.selectedImage()!)"
+    [alt]="'Bild ' + store.selectedImage()"
+    title="Klicken für große Ansicht"
+    (click)="openLightbox()"
+    (keydown.enter)="openLightbox()"
+  />
+
+  <h2>Prompt</h2>
+  <p data-testid="prompt-diff" class="words">
+    @for (seg of store.promptDiff(); track $index) {
+      <span [class]="seg.kind">{{ seg.text }}</span>
+      @if (!$last) {
+        {{ ' ' }}
+      }
+    }
+  </p>
+
+  <h2>Negative Prompt</h2>
+  @if (store.negativeDiff().length === 0) {
+    <p class="hint" data-testid="negative-diff">leer</p>
+  } @else {
+    <p data-testid="negative-diff" class="words">
+      @for (seg of store.negativeDiff(); track $index) {
+        <span [class]="seg.kind">{{ seg.text }}</span>
+        @if (!$last) {
+          {{ ' ' }}
+        }
+      }
+    </p>
+  }
 
   @if (previous() !== null) {
     <h2>Änderungen zu Bild {{ previous() }}</h2>
@@ -72,4 +108,31 @@
       }
     </table>
   </details>
+
+  @if (lightboxOpen()) {
+    <div
+      data-testid="lightbox"
+      class="lightbox"
+      tabindex="0"
+      (click)="closeLightbox()"
+      (keydown.enter)="closeLightbox()"
+    >
+      <img
+        tabindex="0"
+        [src]="store.imageUrl(store.selectedImage()!)"
+        [alt]="'Bild ' + store.selectedImage()"
+        (click)="$event.stopPropagation()"
+        (keydown.enter)="$event.stopPropagation()"
+      />
+      <button
+        type="button"
+        data-testid="lightbox-close"
+        class="close"
+        title="Schließen (Esc)"
+        (click)="closeLightbox()"
+      >
+        ×
+      </button>
+    </div>
+  }
 }
