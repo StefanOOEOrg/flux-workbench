@@ -114,7 +114,8 @@ describe('App', () => {
     const host = getComputedStyle(el);
     expect(host.display).toBe('grid');
     expect(host.overflow).toBe('hidden');
-    expect(host.height).toBe('100vh');
+    // jsdom resolves `100vh` to px (= window.innerHeight), so compare against that.
+    expect(host.height).toBe(`${window.innerHeight}px`);
     fixture.destroy();
   });
 });
