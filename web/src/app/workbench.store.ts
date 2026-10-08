@@ -52,17 +52,21 @@ export class WorkbenchStore {
    * Order unchanged (newest first).
    */
   readonly filteredProjects = computed<ProjectInfo[]>(() => {
-    throw new Error('not implemented');
+    const needle = this.projectFilter().trim().toLowerCase();
+    if (needle === '') {
+      return this.projects();
+    }
+    return this.projects().filter((p) => p.id.toLowerCase().includes(needle));
   });
 
   /** Number of `running` jobs (all projects) - for the status badge in the header. */
   readonly runningCount = computed<number>(() => {
-    throw new Error('not implemented');
+    return this.jobs().filter((j) => j.status === 'running').length;
   });
 
   /** Number of `queued` jobs (all projects) - for the status badge in the header. */
   readonly queuedCount = computed<number>(() => {
-    throw new Error('not implemented');
+    return this.jobs().filter((j) => j.status === 'queued').length;
   });
 
   /**
@@ -70,7 +74,13 @@ export class WorkbenchStore {
    * `[]` without a selected project. Used for the placeholder tiles in the thumbnail strip.
    */
   readonly projectPendingJobs = computed<Job[]>(() => {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      return [];
+    }
+    return this.jobs().filter(
+      (j) => j.project_id === project && (j.status === 'queued' || j.status === 'running'),
+    );
   });
 
   /**
@@ -79,7 +89,9 @@ export class WorkbenchStore {
    * `1 + projectPendingJobs().length`. (Each pending job will take one number before it.)
    */
   readonly nextImageNumber = computed<number>(() => {
-    throw new Error('not implemented');
+    const images = this.images();
+    const base = images.length === 0 ? 1 : Math.max(...images) + 1;
+    return base + this.projectPendingJobs().length;
   });
 
   /**
@@ -88,7 +100,13 @@ export class WorkbenchStore {
    * `false` without settings.
    */
   readonly promptModified = computed<boolean>(() => {
-    throw new Error('not implemented');
+    const settings = this.settings();
+    if (settings === null) {
+      return false;
+    }
+    const prompt = settings.request['prompt'];
+    const baseline = typeof prompt === 'string' ? prompt : '';
+    return this.form().prompt !== baseline;
   });
 
   /** `projects.set(await listProjects())`. */
@@ -321,7 +339,22 @@ export class WorkbenchStore {
    * Errors like everywhere else (`error` set, `settings` unchanged).
    */
   async saveComment(comment: string): Promise<void> {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    const image = this.selectedImage();
+    const settings = this.settings();
+    if (project === null || image === null || settings === null) {
+      return;
+    }
+    if (comment === settings.comment) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.saveComment(project, image, comment));
+      this.settings.update((s) => (s === null ? s : { ...s, comment }));
+      this.error.set(null);
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /** Open image `n` of the selected project in the system viewer (no-op without project). */
