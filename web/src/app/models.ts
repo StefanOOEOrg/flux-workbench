@@ -40,6 +40,8 @@ export interface ImageSettings {
   effective: Record<string, unknown> | null;
   /** Free-text note for this image (`""` if none). Never part of the render request. */
   comment: string;
+  /** Pure render time on the bridge in seconds; `null` for images rendered before #19. */
+  render_seconds: number | null;
 }
 
 /** One entry of `GET /api/projects` (newest first). */

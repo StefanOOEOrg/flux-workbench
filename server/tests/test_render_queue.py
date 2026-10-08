@@ -23,7 +23,7 @@ async def run_until_idle(queue: RenderQueue) -> None:
 async def test_jobs_run_sequentially_and_create_next_numbers(store) -> None:
     folder = make_project(store, PID, {1: {"request": {}}})
     renderer = FakeRenderer()
-    queue = RenderQueue(store, renderer)
+    queue = RenderQueue(store, renderer, clock=FakeClock())
     first = queue.submit(PID, {"prompt": "a"})
     second = queue.submit(PID, {"prompt": "b"})
 
@@ -34,7 +34,56 @@ async def test_jobs_run_sequentially_and_create_next_numbers(store) -> None:
     assert (first.status, first.image_n) == ("done", 2)
     assert (second.status, second.image_n) == ("done", 3)
     saved = json.loads((folder / "3.json").read_text())
-    assert saved == {"request": {"prompt": "b"}, "effective": {"prompt": "b", "seed": 1001}}
+    assert saved == {
+        "request": {"prompt": "b"},
+        "effective": {"prompt": "b", "seed": 1001},
+        "render_seconds": 2.5,
+    }
+
+
+class FakeClock:
+    """Each call returns a value 2.46 s later than the previous one."""
+
+    def __init__(self) -> None:
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        value = self.now
+        self.now += 2.46
+        return value
+
+
+async def test_render_seconds_measures_only_the_bridge_call(store) -> None:
+    folder = make_project(store, PID, {})
+    ticks: list[str] = []
+    renderer = FakeRenderer()
+    real_render = renderer.render
+
+    async def render(request: dict) -> object:
+        ticks.append("render")
+        return await real_render(request)
+
+    renderer.render = render  # type: ignore[method-assign]
+
+    def clock() -> float:
+        ticks.append("clock")
+        return {1: 10.0, 3: 171.44}.get(len(ticks), 999.0)
+
+    queue = RenderQueue(store, renderer, clock=clock)
+    queue.submit(PID, {"prompt": "a"})
+    await run_until_idle(queue)
+
+    assert ticks == ["clock", "render", "clock"]
+    saved = json.loads((folder / "1.json").read_text())
+    assert saved["render_seconds"] == 161.4
+
+
+async def test_failed_render_writes_nothing(store) -> None:
+    folder = make_project(store, PID, {})
+    queue = RenderQueue(store, FakeRenderer(errors={0: BridgeError("HTTP 400")}), clock=FakeClock())
+    queue.submit(PID, {"prompt": "a"})
+    await run_until_idle(queue)
+    assert list(folder.iterdir()) == []
 
 
 async def test_error_does_not_stop_queue(store) -> None:

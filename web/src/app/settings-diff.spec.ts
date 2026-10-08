@@ -44,10 +44,19 @@ describe('diffSettings', () => {
 
 describe('effectiveOrRequest', () => {
   it('prefers effective and falls back to request', () => {
-    expect(effectiveOrRequest({ request: { a: 1 }, effective: { a: 2 }, comment: '' })).toEqual({
+    expect(
+      effectiveOrRequest({
+        request: { a: 1 },
+        effective: { a: 2 },
+        comment: '',
+        render_seconds: null,
+      }),
+    ).toEqual({
       a: 2,
     });
-    expect(effectiveOrRequest({ request: { a: 1 }, effective: null, comment: '' })).toEqual({
+    expect(
+      effectiveOrRequest({ request: { a: 1 }, effective: null, comment: '', render_seconds: null }),
+    ).toEqual({
       a: 1,
     });
   });

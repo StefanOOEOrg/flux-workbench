@@ -56,7 +56,12 @@ def test_images_settings_and_png(api: TestClient, store) -> None:
     assert png.headers["content-type"] == "image/png"
     assert png.content == PNG
     settings = api.get(f"/api/projects/{PID}/images/2/settings").json()
-    assert settings == {"request": {"steps": 2}, "effective": None, "comment": ""}
+    assert settings == {
+        "request": {"steps": 2},
+        "effective": None,
+        "comment": "",
+        "render_seconds": None,
+    }
     assert api.get(f"/api/projects/{PID}/images/5").status_code == 404
 
 

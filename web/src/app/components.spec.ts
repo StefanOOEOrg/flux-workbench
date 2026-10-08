@@ -176,24 +176,32 @@ describe('ImagePanel', () => {
     ctx.store.selectedProject.set('20261007-x');
     ctx.store.images.set([1, 4, 5]);
     ctx.store.selectedImage.set(5);
+    ctx.store.previousSettings.set({
+      request: { prompt: 'a red car', negative: '' },
+      effective: null,
+      comment: '',
+      render_seconds: null,
+    });
     ctx.store.settings.set({
-      request: { steps: 40 },
-      effective: { steps: 40, seed: 482913, prompt: 'p' },
+      request: { steps: 40, prompt: 'a green car', negative: 'blurry' },
+      effective: { steps: 40, seed: 482913, prompt: 'a green car' },
       comment: 'zu dunkel',
+      render_seconds: 161.4,
     });
     ctx.store.diff.set([
       { path: 'steps', kind: 'changed', before: 32, after: 40 },
-      { path: 'negative', kind: 'added', after: 'blurry' },
+      { path: 'hand_fix', kind: 'added', after: true },
       { path: 'lora2', kind: 'removed', before: 1.35 },
     ]);
     ctx.fixture.detectChanges();
     return ctx;
   }
 
-  it('shows image, seed, predecessor and diff chips', () => {
-    const { el, all, fixture } = withImage();
+  it('shows image, seed, render time, predecessor and diff chips', () => {
+    const { el, all, one, fixture } = withImage();
     expect(el.textContent).toContain('Bild 5');
     expect(el.textContent).toContain('Seed 482913');
+    expect(one('render-time').textContent).toContain('2:41 min');
     expect(el.textContent).toContain('Änderungen zu Bild 4');
     expect(fixture.componentInstance.previous()).toBe(4);
 
@@ -210,15 +218,82 @@ describe('ImagePanel', () => {
     expect(chips[2].querySelector('[data-testid="diff-after"]')).toBeNull();
   });
 
-  it('clone and seed buttons call the store', () => {
+  it('shows "–" when the render time was not measured', () => {
     const { store, one, fixture } = withImage();
-    const clone = vi.spyOn(store, 'cloneSelected');
+    store.settings.update((st) => ({ ...st!, render_seconds: null }));
+    fixture.detectChanges();
+    expect(one('render-time').textContent).toContain('–');
+  });
+
+  it('shows the prompt and negative prompt as word diff', () => {
+    const { one } = withImage();
+    const words = (id: string) =>
+      Array.from(one(id).querySelectorAll('span')).map((s) => [s.className, s.textContent!.trim()]);
+    expect(words('prompt-diff')).toEqual([
+      ['same', 'a'],
+      ['removed', 'red'],
+      ['added', 'green'],
+      ['same', 'car'],
+    ]);
+    expect(words('negative-diff')).toEqual([['added', 'blurry']]);
+  });
+
+  it('shows "leer" for an empty negative prompt', () => {
+    const { store, one, fixture } = withImage();
+    store.settings.update((st) => ({ ...st!, request: { prompt: 'a car', negative: '' } }));
+    store.previousSettings.set(null);
+    fixture.detectChanges();
+    expect(one('negative-diff').textContent!.trim()).toBe('leer');
+  });
+
+  it('has no clone button any more; seed button calls the store', () => {
+    const { store, one, fixture } = withImage();
+    expect(one('clone')).toBeUndefined();
     const seed = vi.spyOn(store, 'adoptSeed');
-    one('clone').click();
     one('adopt-seed').click();
-    expect(clone).toHaveBeenCalled();
     expect(seed).toHaveBeenCalled();
     expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('opens the large view from the preview and closes it with Esc, backdrop or button', () => {
+    const { one, fixture } = withImage();
+    const preview = one('preview') as HTMLImageElement;
+    expect(preview.getAttribute('src')).toContain('/api/projects/20261007-x/images/5');
+    expect(one('lightbox')).toBeUndefined();
+
+    preview.click();
+    fixture.detectChanges();
+    const box = one('lightbox');
+    expect(box.querySelector('img')!.getAttribute('src')).toContain('/images/5');
+
+    box.querySelector('img')!.click(); // click on the image itself keeps it open
+    fixture.detectChanges();
+    expect(one('lightbox')).toBeTruthy();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(one('lightbox')).toBeUndefined();
+
+    one('preview').click();
+    fixture.detectChanges();
+    one('lightbox').click();
+    fixture.detectChanges();
+    expect(one('lightbox')).toBeUndefined();
+
+    one('preview').click();
+    fixture.detectChanges();
+    one('lightbox-close').click();
+    fixture.detectChanges();
+    expect(one('lightbox')).toBeUndefined();
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('the large view covers the whole window', () => {
+    const { one, fixture } = withImage();
+    one('preview').click();
+    fixture.detectChanges();
+    const style = getComputedStyle(one('lightbox'));
+    expect(style.position).toBe('fixed');
   });
 
   it('first image shows "Erstes Bild" and no predecessor heading', () => {
@@ -477,7 +552,12 @@ describe('PromptPanel', () => {
 
   it('shows "geändert" only when the prompt differs from the selected image', () => {
     const { store, fixture, one } = render(PromptPanel);
-    store.settings.set({ request: { prompt: 'car' }, effective: null, comment: '' });
+    store.settings.set({
+      request: { prompt: 'car' },
+      effective: null,
+      comment: '',
+      render_seconds: null,
+    });
     store.form.set({ prompt: 'car' });
     fixture.detectChanges();
     expect(one('prompt-modified')).toBeUndefined();

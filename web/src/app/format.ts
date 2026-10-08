@@ -30,3 +30,13 @@ export function summary(parts: (string | null | undefined)[], empty = 'Defaults'
 export function imageCountLabel(n: number): string {
   return n === 1 ? '1 Bild' : `${n} Bilder`;
 }
+
+/**
+ * Render time for the image header (issue #19). `null` -> `'–'`.
+ * Round to whole seconds FIRST (`Math.round`), then: below 60 -> `'<s> s'` (e.g. `'48 s'`,
+ * `'0 s'`); from 60 on -> `'<m>:<ss> min'` with two-digit seconds (e.g. 161.4 -> `'2:41 min'`,
+ * 60 -> `'1:00 min'`, 59.6 -> `'1:00 min'`, 3725 -> `'62:05 min'`).
+ */
+export function formatDuration(seconds: number | null): string {
+  throw new Error('not implemented');
+}

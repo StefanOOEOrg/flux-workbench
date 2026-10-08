@@ -185,7 +185,10 @@ class ProjectStore:
         return path
 
     def read_settings(self, project_id: str, n: int) -> dict[str, Any]:
-        """Read ``<n>.json``; return ``{"request": dict, "effective": dict|None, "comment": str}``.
+        """Read ``<n>.json``; return ``{"request": dict, "effective": dict|None, "comment": str,
+        "render_seconds": float|None}``.
+
+        TODO(WP1): ``"render_seconds"`` is not returned yet - add it per the rule below.
 
         Normalisation: if the parsed JSON is a dict that has neither a ``"request"``
         nor an ``"effective"`` key (older, hand-written files), return
@@ -193,6 +196,9 @@ class ProjectStore:
         use ``None``; if ``"request"`` is missing, use ``{}``.
         ``"comment"``: the file's ``"comment"`` value if it is a ``str``, otherwise ``""``
         (missing, ``null``, number, ...).
+        ``"render_seconds"``: the file's top-level ``"render_seconds"`` as ``float`` if it is an
+        ``int`` or ``float`` (but NOT ``bool``), otherwise ``None`` (missing, ``null``, string,
+        ``true`` ...). For old plain-dict files always ``None``.
 
         Raises:
             ProjectError: invalid project id, ``n < 1``, file is not valid JSON
@@ -266,7 +272,8 @@ class ProjectStore:
 
         ``n = next_number(project_id)``; write ``<n>.png`` (bytes) first, then ``<n>.json``
         (``json.dumps(settings, indent=2, ensure_ascii=False)``, UTF-8).
-        ``settings`` is ``{"request": ..., "effective": ...}`` as built by the queue.
+        ``settings`` is ``{"request": ..., "effective": ..., "render_seconds": ...}`` as built by
+        the queue (written as given).
 
         Raises like ``project_dir`` (e.g. NotFound if the project was deleted meanwhile).
         """

@@ -102,15 +102,16 @@ def test_image_path(store) -> None:
 def test_read_settings_new_format(store) -> None:
     data = {"request": {"prompt": "p"}, "effective": {"prompt": "p", "seed": 5}}
     make_project(store, "20261007-x", {1: data})
-    assert store.read_settings("20261007-x", 1) == {**data, "comment": ""}
+    assert store.read_settings("20261007-x", 1) == {**data, "comment": "", "render_seconds": None}
 
 
 def test_read_settings_plain_dict_is_request(store) -> None:
-    make_project(store, "20261007-x", {1: {"prompt": "p", "steps": 3}})
+    make_project(store, "20261007-x", {1: {"prompt": "p", "steps": 3, "render_seconds": 5}})
     assert store.read_settings("20261007-x", 1) == {
-        "request": {"prompt": "p", "steps": 3},
+        "request": {"prompt": "p", "steps": 3, "render_seconds": 5},
         "effective": None,
         "comment": "",
+        "render_seconds": None,
     }
 
 
@@ -120,12 +121,27 @@ def test_read_settings_missing_keys_filled(store) -> None:
         "request": {},
         "effective": {"a": 1},
         "comment": "",
+        "render_seconds": None,
     }
     assert store.read_settings("20261007-x", 2) == {
         "request": {"a": 1},
         "effective": None,
         "comment": "",
+        "render_seconds": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(161.4, 161.4), (48, 48.0), (0, 0.0), (None, None), ("12", None), (True, None)],
+)
+def test_read_settings_render_seconds(store, raw: object, expected: float | None) -> None:
+    make_project(
+        store, "20261007-x", {1: {"request": {}, "effective": None, "render_seconds": raw}}
+    )
+    value = store.read_settings("20261007-x", 1)["render_seconds"]
+    assert value == expected
+    assert value is None or type(value) is float
 
 
 @pytest.mark.parametrize(("raw", "expected"), [("gut", "gut"), (None, ""), (5, ""), ("", "")])
