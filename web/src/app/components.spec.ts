@@ -2,11 +2,12 @@ import { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
-import { Job } from './models';
+import { ImagePanel } from './image-panel/image-panel';
+import { DEFAULT_REQUEST, Job, SAMPLERS, SCHEDULERS } from './models';
 import { ParamForm } from './param-form/param-form';
 import { ProjectList } from './project-list/project-list';
+import { PromptPanel } from './prompt-panel/prompt-panel';
 import { QueuePanel } from './queue-panel/queue-panel';
-import { SettingsPanel } from './settings-panel/settings-panel';
 import { ThumbnailStrip } from './thumbnail-strip/thumbnail-strip';
 import { WorkbenchStore } from './workbench.store';
 
@@ -24,25 +25,55 @@ function render<T>(component: Type<T>) {
   return { store, fixture, el, all, one };
 }
 
+function job(
+  id: string,
+  status: Job['status'],
+  image_n: number | null = null,
+  project_id = '20261007-x',
+): Job {
+  return {
+    id,
+    project_id,
+    request: { prompt: 'car ' + id },
+    status,
+    created_at: '',
+    image_n,
+    error: status === 'error' ? 'HTTP 400: bad' : null,
+  };
+}
+
+/** Every `<button>` must be `type="button"`, and there is no `<form>` (no page reload). */
+function expectNoSubmitButtons(el: HTMLElement): void {
+  for (const button of Array.from(el.querySelectorAll('button'))) {
+    expect(button.type).toBe('button');
+  }
+  expect(el.querySelector('form')).toBeNull();
+}
+
 describe('ProjectList', () => {
-  it('lists projects, selects, creates and deletes with confirmation', async () => {
+  it('shows name, date, image count; selects, creates and deletes with confirmation', async () => {
     const { store, fixture, all, one } = render(ProjectList);
     const select = vi.spyOn(store, 'selectProject').mockResolvedValue();
     const create = vi.spyOn(store, 'createProject').mockResolvedValue();
     const del = vi.spyOn(store, 'deleteProject').mockResolvedValue();
-    store.projects.set(['20261007-b', '20261006-a']);
-    store.selectedProject.set('20261006-a');
+    store.projects.set([
+      { id: '20261007-Gruenes_Auto', image_count: 1 },
+      { id: '20261006-Portrait', image_count: 12 },
+    ]);
+    store.selectedProject.set('20261006-Portrait');
     fixture.detectChanges();
 
+    expect(one('project-count').textContent!.trim()).toBe('2');
     const rows = all('project');
-    expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringContaining('20261007-b'),
-      expect.stringContaining('20261006-a'),
-    ]);
+    expect(rows[0].textContent).toContain('Gruenes_Auto');
+    expect(rows[0].textContent).toContain('07.10.2026');
+    expect(rows[0].textContent).toContain('1 Bild');
+    expect(rows[0].textContent).not.toContain('20261007-');
+    expect(rows[1].textContent).toContain('12 Bilder');
     expect(rows[1].classList).toContain('selected');
 
     rows[0].click();
-    expect(select).toHaveBeenCalledWith('20261007-b');
+    expect(select).toHaveBeenCalledWith('20261007-Gruenes_Auto');
 
     const input = one('new-name') as HTMLInputElement;
     input.value = 'Neu';
@@ -60,7 +91,37 @@ describe('ProjectList', () => {
     fixture.componentInstance.confirmFn = () => true;
     all('delete')[0].click();
     await fixture.whenStable();
-    expect(del).toHaveBeenCalledWith('20261007-b');
+    expect(del).toHaveBeenCalledWith('20261007-Gruenes_Auto');
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('filters the list via the filter field', () => {
+    const { store, fixture, all, one, el } = render(ProjectList);
+    store.projects.set([
+      { id: '20261008-Gruenes_Auto', image_count: 3 },
+      { id: '20261006-Portrait', image_count: 1 },
+    ]);
+    fixture.detectChanges();
+    const filter = one('filter') as HTMLInputElement;
+    filter.value = 'auto';
+    filter.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(store.projectFilter()).toBe('auto');
+    expect(all('project')).toHaveLength(1);
+
+    filter.value = 'xyz';
+    filter.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(all('project')).toHaveLength(0);
+    expect(el.textContent).toContain('Kein Treffer');
+  });
+
+  it('only the list scrolls (heading, input and filter stay visible)', () => {
+    const { store, fixture, el } = render(ProjectList);
+    store.projects.set([{ id: '20261008-a', image_count: 0 }]);
+    fixture.detectChanges();
+    const list = el.querySelector('.projects') as HTMLElement;
+    expect(getComputedStyle(list).overflowY).toBe('auto');
   });
 });
 
@@ -90,29 +151,126 @@ describe('ThumbnailStrip', () => {
     thumbs[0].dispatchEvent(new MouseEvent('dblclick'));
     expect(open).toHaveBeenCalledWith(1);
   });
+
+  it('adds placeholder tiles for pending jobs of the selected project', () => {
+    const { store, fixture, all } = render(ThumbnailStrip);
+    store.selectedProject.set('20261007-x');
+    store.images.set([1]);
+    store.jobs.set([
+      job('r', 'running'),
+      job('q', 'queued'),
+      job('o', 'queued', null, '20261001-other'),
+      job('d', 'done', 1),
+    ]);
+    fixture.detectChanges();
+    const pending = all('pending');
+    expect(pending).toHaveLength(2);
+    expect(pending[0].textContent).toContain('läuft');
+    expect(pending[1].textContent).toContain('wartet');
+  });
 });
 
-describe('SettingsPanel', () => {
-  it('shows settings, highlights and lists the diff, clone and seed buttons', () => {
-    const { store, fixture, el, all, one } = render(SettingsPanel);
+describe('ImagePanel', () => {
+  function withImage() {
+    const ctx = render(ImagePanel);
+    ctx.store.selectedProject.set('20261007-x');
+    ctx.store.images.set([1, 4, 5]);
+    ctx.store.selectedImage.set(5);
+    ctx.store.settings.set({
+      request: { steps: 40 },
+      effective: { steps: 40, seed: 482913, prompt: 'p' },
+      comment: 'zu dunkel',
+    });
+    ctx.store.diff.set([
+      { path: 'steps', kind: 'changed', before: 32, after: 40 },
+      { path: 'negative', kind: 'added', after: 'blurry' },
+      { path: 'lora2', kind: 'removed', before: 1.35 },
+    ]);
+    ctx.fixture.detectChanges();
+    return ctx;
+  }
+
+  it('shows image, seed, predecessor and diff chips', () => {
+    const { el, all, fixture } = withImage();
+    expect(el.textContent).toContain('Bild 5');
+    expect(el.textContent).toContain('Seed 482913');
+    expect(el.textContent).toContain('Änderungen zu Bild 4');
+    expect(fixture.componentInstance.previous()).toBe(4);
+
+    const chips = all('diff-entry');
+    expect(chips).toHaveLength(3);
+    expect(chips[0].classList).toContain('changed');
+    expect(chips[0].querySelector('[data-testid="diff-path"]')!.textContent).toBe('steps');
+    expect(chips[0].querySelector('[data-testid="diff-before"]')!.textContent).toBe('32');
+    expect(chips[0].querySelector('[data-testid="diff-after"]')!.textContent).toBe('40');
+    expect(chips[0].getAttribute('title')).toBe('steps: 32 → 40');
+    expect(chips[1].classList).toContain('added');
+    expect(chips[1].querySelector('[data-testid="diff-before"]')).toBeNull();
+    expect(chips[2].classList).toContain('removed');
+    expect(chips[2].querySelector('[data-testid="diff-after"]')).toBeNull();
+  });
+
+  it('clone and seed buttons call the store', () => {
+    const { store, one, fixture } = withImage();
     const clone = vi.spyOn(store, 'cloneSelected');
     const seed = vi.spyOn(store, 'adoptSeed');
-    store.images.set([1, 2]);
-    store.selectedImage.set(2);
-    store.settings.set({ request: { steps: 40 }, effective: { steps: 40, seed: 7, prompt: 'p' } });
-    store.diff.set([{ path: 'steps', kind: 'changed', before: 32, after: 40 }]);
-    fixture.detectChanges();
-
-    expect(all('diff-entry').map((e) => e.textContent!.trim())).toEqual(['steps: 32 → 40']);
-    expect(el.querySelector('tr.changed')!.textContent).toContain('steps');
     one('clone').click();
     one('adopt-seed').click();
     expect(clone).toHaveBeenCalled();
     expect(seed).toHaveBeenCalled();
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('first image shows "Erstes Bild" and no predecessor heading', () => {
+    const { store, fixture, el } = withImage();
+    store.selectedImage.set(1);
+    store.diff.set([]);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.previous()).toBeNull();
+    expect(el.textContent).toContain('Erstes Bild');
+    expect(el.textContent).not.toContain('Änderungen zu Bild');
+  });
+
+  it('edits and saves the comment on blur', async () => {
+    const { store, one, fixture } = withImage();
+    const save = vi.spyOn(store, 'saveComment').mockResolvedValue();
+    const area = one('comment') as HTMLTextAreaElement;
+    expect(area.value).toBe('zu dunkel');
+    expect(one('comment-state').textContent!.trim()).toBe('· gespeichert');
+
+    area.value = 'heller machen';
+    area.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(one('comment-state').textContent!.trim()).toBe('· ungespeichert');
+
+    area.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(save).toHaveBeenCalledWith('heller machen');
+    expect(fixture.componentInstance.commentDirty()).toBe(false);
+  });
+
+  it('keeps the comment marked unsaved when saving fails', async () => {
+    const { store, one, fixture } = withImage();
+    vi.spyOn(store, 'saveComment').mockImplementation(async () => {
+      store.error.set('zu lang');
+    });
+    const area = one('comment') as HTMLTextAreaElement;
+    area.dispatchEvent(new Event('input'));
+    area.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    expect(fixture.componentInstance.commentDirty()).toBe(true);
+  });
+
+  it('settings table is collapsed by default and marks changed rows', () => {
+    const { el } = withImage();
+    const details = el.querySelector('details.all') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(el.querySelector('tr.changed')!.textContent).toContain('steps');
   });
 
   it('formats diff lines', () => {
-    const { fixture } = render(SettingsPanel);
+    const { fixture } = render(ImagePanel);
     const panel = fixture.componentInstance;
     expect(panel.formatDiff({ path: 'a', kind: 'added', after: 'x' })).toBe('a: neu x');
     expect(panel.formatDiff({ path: 'h', kind: 'removed', before: { s: 1 } })).toBe(
@@ -151,40 +309,90 @@ describe('ParamForm', () => {
     expect(before).toEqual({ prompt: 'p', seed: 5, preset: 'fast', hires: true });
   });
 
-  it('renders controls and submits', () => {
-    const { store, fixture, one } = render(ParamForm);
-    const submit = vi.spyOn(store, 'submit').mockResolvedValue();
-    fixture.detectChanges();
-    expect((one('submit') as HTMLButtonElement).disabled).toBe(true);
-    expect((one('f-prompt') as HTMLTextAreaElement).value).toBe(
-      'A green car on the road in London',
+  it('removes sampler/scheduler on empty selection', () => {
+    const { store, fixture } = render(ParamForm);
+    const form = fixture.componentInstance;
+    form.setText('sampler', '');
+    form.setText('scheduler', '');
+    expect('sampler' in store.form()).toBe(false);
+    expect('scheduler' in store.form()).toBe(false);
+    form.setText('sampler', 'euler');
+    expect(store.form().sampler).toBe('euler');
+  });
+
+  it('switches lora2 on and off', () => {
+    const { store, fixture } = render(ParamForm);
+    const form = fixture.componentInstance;
+    form.setLora2Enabled(false);
+    expect(store.form().lora2).toBe(false);
+    form.setLora2Enabled(true);
+    expect(store.form().lora2).toBe(1.35);
+    form.setLora2('0.8');
+    form.setLora2Enabled(true);
+    expect(store.form().lora2).toBe(0.8);
+  });
+
+  it('helpers isOn and extraOption', () => {
+    const { fixture } = render(ParamForm);
+    const form = fixture.componentInstance;
+    expect([true, 1.2, 0, { a: 1 }].map((v) => form.isOn(v))).toEqual([true, true, true, true]);
+    expect([false, undefined, null].map((v) => form.isOn(v))).toEqual([false, false, false]);
+    expect(form.extraOption('my_sampler', SAMPLERS)).toBe('my_sampler');
+    expect(form.extraOption('euler', SAMPLERS)).toBeNull();
+    expect(form.extraOption('', SAMPLERS)).toBeNull();
+    expect(form.extraOption(undefined, SCHEDULERS)).toBeNull();
+  });
+
+  it('summarises every group', () => {
+    const { store, fixture } = render(ParamForm);
+    const form = fixture.componentInstance;
+    store.form.set(structuredClone(DEFAULT_REQUEST));
+    expect(form.groupSummary('model')).toBe('flux-lora · realistic · 1024×1024');
+    expect(form.groupSummary('sampling')).toBe(
+      '32 steps · g 1.8 · Seed zufällig · dpmpp_2m · beta',
     );
-    expect(one('f-hires-scale')).toBeTruthy();
+    expect(form.groupSummary('fixes')).toBe('Hires 1.5× · Face · Hand');
+    expect(form.groupSummary('lora')).toBe('Heartsync 0.2 · Lustly 1.35');
 
-    store.selectedProject.set('20261007-x');
-    fixture.detectChanges();
-    one('submit').click();
-    expect(submit).toHaveBeenCalled();
-
-    const steps = one('f-steps') as HTMLInputElement;
-    steps.value = '12';
-    steps.dispatchEvent(new Event('input'));
-    expect(store.form().steps).toBe(12);
+    store.form.set({
+      prompt: 'p',
+      seed: 7,
+      hires: false,
+      face_fix: false,
+      hand_fix: false,
+      lora2: false,
+    });
+    expect(form.groupSummary('model')).toBe('Defaults');
+    expect(form.groupSummary('sampling')).toBe('Seed 7');
+    expect(form.groupSummary('fixes')).toBe('aus');
+    expect(form.groupSummary('lora')).toBe('aus');
   });
 
-  it('never triggers a native form submit (would reload the page)', () => {
-    const { store, fixture, el } = render(ParamForm);
-    vi.spyOn(store, 'submit').mockResolvedValue();
-    store.selectedProject.set('20261007-x');
+  it('renders closed groups with summaries and selects for sampler/scheduler', () => {
+    const { store, fixture, el, one } = render(ParamForm);
     fixture.detectChanges();
-    const buttons = Array.from(el.querySelectorAll('button'));
-    expect(buttons.length).toBeGreaterThan(0);
-    for (const button of buttons) {
-      expect(button.type).toBe('button');
-    }
+    const groups = Array.from(el.querySelectorAll<HTMLDetailsElement>('details.group'));
+    expect(groups.map((g) => g.dataset['testid'])).toEqual([
+      'group-model',
+      'group-sampling',
+      'group-fixes',
+      'group-lora',
+    ]);
+    expect(groups.every((g) => !g.open)).toBe(true);
+    expect(one('sum-model').textContent).toContain('flux-lora');
+
+    const sampler = one('f-sampler') as HTMLSelectElement;
+    expect(sampler.tagName).toBe('SELECT');
+    expect(sampler.value).toBe('dpmpp_2m');
+    expect(sampler.options.length).toBe(SAMPLERS.length + 1);
+    expect((one('f-scheduler') as HTMLSelectElement).value).toBe('beta');
+
+    store.form.update((f) => ({ ...f, sampler: 'my_sampler' }));
+    fixture.detectChanges();
+    expect((one('f-sampler') as HTMLSelectElement).value).toBe('my_sampler');
   });
 
-  it('selects show the current form values', () => {
+  it('selects show the current model and preset', () => {
     const { store, fixture, one } = render(ParamForm);
     fixture.detectChanges();
     expect((one('f-model') as HTMLSelectElement).value).toBe('flux-lora');
@@ -203,19 +411,93 @@ describe('ParamForm', () => {
     fixture.detectChanges();
     expect((one('f-preset') as HTMLSelectElement).value).toBe('');
   });
+
+  it('shows sub-fields only when the switch is on', () => {
+    const { store, fixture, one } = render(ParamForm);
+    fixture.detectChanges();
+    expect(one('f-hires-scale')).toBeTruthy();
+    expect(one('f-lora2')).toBeTruthy();
+
+    store.form.update((f) => ({ ...f, hires: false, lora2: false }));
+    fixture.detectChanges();
+    expect(one('f-hires-scale')).toBeUndefined();
+    expect(one('f-lora2')).toBeUndefined();
+    expect((one('f-hires') as HTMLInputElement).checked).toBe(false);
+    expect((one('f-lora2-on') as HTMLInputElement).checked).toBe(false);
+
+    const steps = one('f-steps') as HTMLInputElement;
+    steps.value = '12';
+    steps.dispatchEvent(new Event('input'));
+    expect(store.form().steps).toBe(12);
+  });
+
+  it('has no prompt fields, no render button and no submit buttons', () => {
+    const { fixture, one } = render(ParamForm);
+    fixture.detectChanges();
+    expect(one('f-prompt')).toBeUndefined();
+    expect(one('f-negative')).toBeUndefined();
+    expect(one('submit')).toBeUndefined();
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+});
+
+describe('PromptPanel', () => {
+  it('edits prompt and negative prompt', () => {
+    const { store, fixture, one } = render(PromptPanel);
+    fixture.detectChanges();
+    const prompt = one('f-prompt') as HTMLTextAreaElement;
+    expect(prompt.value).toBe(DEFAULT_REQUEST.prompt);
+    prompt.value = 'A red bus';
+    prompt.dispatchEvent(new Event('input'));
+    expect(store.form().prompt).toBe('A red bus');
+
+    const neg = one('f-negative') as HTMLTextAreaElement;
+    neg.value = 'blurry';
+    neg.dispatchEvent(new Event('input'));
+    expect(store.form().negative).toBe('blurry');
+    neg.value = '';
+    neg.dispatchEvent(new Event('input'));
+    expect(store.form().negative).toBe('');
+  });
+
+  it('render button shows the next number, is disabled without project and submits', () => {
+    const { store, fixture, one } = render(PromptPanel);
+    const submit = vi.spyOn(store, 'submit').mockResolvedValue();
+    fixture.detectChanges();
+    expect((one('submit') as HTMLButtonElement).disabled).toBe(true);
+
+    store.selectedProject.set('20261007-x');
+    store.images.set([1, 2]);
+    fixture.detectChanges();
+    expect(one('submit').textContent).toContain('Bild 3');
+    one('submit').click();
+    expect(submit).toHaveBeenCalled();
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('shows "geändert" only when the prompt differs from the selected image', () => {
+    const { store, fixture, one } = render(PromptPanel);
+    store.settings.set({ request: { prompt: 'car' }, effective: null, comment: '' });
+    store.form.set({ prompt: 'car' });
+    fixture.detectChanges();
+    expect(one('prompt-modified')).toBeUndefined();
+
+    store.form.set({ prompt: 'car in rain' });
+    fixture.detectChanges();
+    expect(one('prompt-modified')).toBeTruthy();
+  });
+
+  it('layout keeps the render button inside the card (bug fix #11)', () => {
+    const { fixture } = render(PromptPanel);
+    fixture.detectChanges();
+    const host = getComputedStyle(fixture.nativeElement as HTMLElement);
+    expect(host.display).toBe('grid');
+    expect(host.overflow).toBe('hidden');
+    expect(host.gridTemplateRows).toContain('minmax(0, 1fr)');
+  });
 });
 
 describe('QueuePanel', () => {
-  const job = (id: string, status: Job['status'], image_n: number | null = null): Job => ({
-    id,
-    project_id: '20261007-x',
-    request: { prompt: 'car ' + id },
-    status,
-    created_at: '',
-    image_n,
-    error: status === 'error' ? 'HTTP 400: bad' : null,
-  });
-
   it('shows newest first, hides cancelled, keeps 5 done, cancels queued', () => {
     const { store, fixture, all } = render(QueuePanel);
     const cancel = vi.spyOn(store, 'cancelJob').mockResolvedValue();
@@ -232,11 +514,20 @@ describe('QueuePanel', () => {
     const ids = fixture.componentInstance.visibleJobs().map((j) => j.id);
     expect(ids).toEqual(['q', 'r', 'e', 'd6', 'd5', 'd4', 'd3', 'd2']);
     const rows = all('job');
+    expect(rows[0].classList).toContain('queued');
     expect(rows[0].textContent).toContain('Wartet');
     expect(rows[2].textContent).toContain('HTTP 400: bad');
     expect(rows[3].textContent).toContain('Fertig (#6)');
     expect(all('cancel')).toHaveLength(1);
     all('cancel')[0].click();
     expect(cancel).toHaveBeenCalledWith('q');
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('builds a readable title', () => {
+    const { fixture } = render(QueuePanel);
+    const panel = fixture.componentInstance;
+    expect(panel.title(job('a', 'done', 6, '20261008-Gruenes_Auto'))).toBe('#6 · Gruenes_Auto');
+    expect(panel.title(job('b', 'queued', null, '20261006-Portrait'))).toBe('Portrait');
   });
 });

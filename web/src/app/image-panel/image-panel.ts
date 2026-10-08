@@ -1,0 +1,127 @@
+import { Component, computed, inject, signal } from '@angular/core';
+
+import { effectiveOrRequest, flattenSettings } from '../settings-diff';
+import { WorkbenchStore } from '../workbench.store';
+
+/**
+ * Column "Bild" (issue #11, mockup `docs/ui-mockup.html`, first card under the thumbnails):
+ * selected image info, diff chips, comment, collapsed table of all settings.
+ * Replaces the former `SettingsPanel`; the existing template/CSS are the starting point.
+ *
+ * Template (`image-panel.html`) - required markup (tests use the `data-testid`s):
+ * - No `store.settings()`: only `<p class="empty">Bild auswählen</p>`.
+ * - Head row: `<h3>Bild {{ store.selectedImage() }}` plus, if `seed()` is a number,
+ *   `<span class="hint">· Seed {{ seed() }}</span>`; on the right
+ *   `<button type="button" data-testid="clone">Klonen</button>` -> `store.cloneSelected()` and
+ *   `<button type="button" data-testid="adopt-seed" class="ghost">Seed übernehmen</button>` ->
+ *   `store.adoptSeed()` (disabled when `seed()` is null).
+ * - `<h2>Änderungen zu Bild {{ previous() }}</h2>` (only if `previous()` is not null) and
+ *   `<section data-testid="diff">`: if `store.diff()` is empty show
+ *   `<p class="hint">Erstes Bild</p>` when `previous()` is null, else
+ *   `<p class="hint">Keine Änderungen zum Vorgänger</p>`. Otherwise one chip per entry:
+ *   `<div data-testid="diff-entry" [class]="'chip ' + entry.kind" [title]="formatDiff(entry)">`
+ *   with `<b data-testid="diff-path">{{ entry.path }}</b>`; for `changed`/`removed`
+ *   `<span class="old" data-testid="diff-before">{{ formatValue(entry.before) }}</span>`;
+ *   for `changed` `<span class="arrow">→</span>`; for `changed`/`added`
+ *   `<span data-testid="diff-after">{{ formatValue(entry.after) }}</span>`.
+ * - `<h2>Kommentar <span data-testid="comment-state">{{ commentState() }}</span></h2>`, below
+ *   `<textarea data-testid="comment" class="comment" placeholder="Notiz zu diesem Bild …">`
+ *   with `[value]="store.settings()!.comment"`, `(input)` -> `onCommentInput()`,
+ *   `(blur)` -> `onCommentBlur($any($event.target).value)`.
+ * - `<details class="all">` (NOT open) with `<summary>Alle Einstellungen</summary>` and a
+ *   `<table>` of `rows()` (`<td>path</td><td>formatValue(value)</td>`); rows whose path is in
+ *   `changedPaths()` get class `changed`. The former "Gesendeter Request" block is removed.
+ * - Every `<button>` has `type="button"`.
+ *
+ * CSS (`image-panel.css`): rewrite in the mockup style (`.chip` with coloured left border per
+ * kind: changed `--chg`, added `--add`, removed `--rem`; `.old` struck-through and muted;
+ * monospace 12px; table rows `tr.changed` tinted; `.comment` width 100%, min-height 90px).
+ * Only CSS variables from `styles.css`, no hard-coded light colours.
+ */
+@Component({
+  selector: 'app-image-panel',
+  templateUrl: './image-panel.html',
+  styleUrl: './image-panel.css',
+})
+export class ImagePanel {
+  protected readonly store = inject(WorkbenchStore);
+
+  /** `true` while the comment textarea has unsaved typing (set by `onCommentInput`). */
+  readonly commentDirty = signal(false);
+
+  /** `flattenSettings(effectiveOrRequest(settings))`, or `[]` without settings. */
+  readonly rows = computed<[string, unknown][]>(() => {
+    const settings = this.store.settings();
+    if (settings === null) {
+      return [];
+    }
+    return flattenSettings(effectiveOrRequest(settings));
+  });
+
+  /** Set of `path`s from `store.diff()`. */
+  readonly changedPaths = computed<Set<string>>(() => {
+    return new Set(this.store.diff().map((e) => e.path));
+  });
+
+  /** `store.settings()?.effective?.['seed']` if it is a number, else `null`. */
+  readonly seed = computed<number | null>(() => {
+    const seed = this.store.settings()?.effective?.['seed'];
+    return typeof seed === 'number' ? seed : null;
+  });
+
+  /**
+   * Image number before the selected one in `store.images()` (not necessarily n-1),
+   * or `null` if nothing is selected or it is the first image.
+   */
+  readonly previous = computed<number | null>(() => {
+    throw new Error('not implemented');
+  });
+
+  /**
+   * Text for `comment-state`: `'· ungespeichert'` while `commentDirty()`; otherwise
+   * `'· gespeichert'` if the stored comment (`store.settings()?.comment`) is non-empty, else `''`.
+   */
+  readonly commentState = computed<string>(() => {
+    throw new Error('not implemented');
+  });
+
+  /** Mark the comment as having unsaved changes (`commentDirty.set(true)`). */
+  onCommentInput(): void {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * `await store.saveComment(value)`; afterwards set `commentDirty` to `false` only if
+   * `store.error()` is null (on error the text stays marked as unsaved).
+   */
+  async onCommentBlur(value: string): Promise<void> {
+    throw new Error('not implemented');
+  }
+
+  /**
+   * Tooltip text for one diff chip:
+   * - changed: `` `${path}: ${formatValue(before)} → ${formatValue(after)}` ``
+   * - added:   `` `${path}: neu ${formatValue(after)}` ``
+   * - removed: `` `${path}: entfernt (war ${formatValue(before)})` ``
+   */
+  formatDiff(entry: { path: string; kind: string; before?: unknown; after?: unknown }): string {
+    if (entry.kind === 'added') {
+      return `${entry.path}: neu ${this.formatValue(entry.after)}`;
+    }
+    if (entry.kind === 'removed') {
+      return `${entry.path}: entfernt (war ${this.formatValue(entry.before)})`;
+    }
+    return `${entry.path}: ${this.formatValue(entry.before)} → ${this.formatValue(entry.after)}`;
+  }
+
+  /** Strings as-is (no quotes), everything else `JSON.stringify(value)`; `undefined` -> `'–'`. */
+  formatValue(value: unknown): string {
+    if (value === undefined) {
+      return '–';
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    return JSON.stringify(value);
+  }
+}
