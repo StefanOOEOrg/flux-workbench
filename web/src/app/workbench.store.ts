@@ -223,7 +223,8 @@ export class WorkbenchStore {
    * If a job of the selected project changed to `done` since the previous poll (job id was
    * not `done` in the old `jobs()` list, or was not in it), reload `images` (increment
    * `imagesVersion`) and `await selectImage(job.image_n)` of the newest such job.
-   * Errors: set `error` like everywhere else.
+   * Errors: set `error` like everywhere else. EXCEPTION to the class rule: a successful poll must
+   * NOT reset `error` to null (it runs every 2 s and would hide every message within 2 s).
    */
   async refreshJobs(): Promise<void> {
     const project = this.selectedProject();

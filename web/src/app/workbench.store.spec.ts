@@ -163,6 +163,13 @@ describe('WorkbenchStore', () => {
     expect(store.imagesVersion()).toBeGreaterThan(version);
   });
 
+  it('a successful poll keeps an existing error message visible', async () => {
+    const { store } = setup();
+    store.error.set('Prompt fehlt');
+    await store.refreshJobs();
+    expect(store.error()).toBe('Prompt fehlt');
+  });
+
   it('deleting the selected project resets the selection', async () => {
     const { store, api } = setup();
     api.images[PID] = [1];
