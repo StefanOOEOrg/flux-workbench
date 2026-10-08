@@ -1,60 +1,73 @@
-.queue {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+:host {
+  display: block;
+}
+
+.jobs {
   display: grid;
-  gap: 4px;
-}
-
-.queue li {
-  display: grid;
-  gap: 2px;
-  padding: 4px 6px;
-  border-left: 3px solid #ccc;
-  font-size: 0.85em;
-}
-
-.queue li.queued {
-  border-left-color: #888;
-}
-
-.queue li.running {
-  border-left-color: #0057d2;
-}
-
-.queue li.done {
-  border-left-color: #2e7d32;
-}
-
-.queue li.error {
-  border-left-color: #c62828;
-}
-
-.row {
-  display: flex;
   gap: 6px;
-  align-items: baseline;
 }
 
-.status {
-  white-space: nowrap;
-  font-weight: 600;
+.job {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border-left: 3px solid var(--border);
 }
 
-.project {
+.job .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.job .p {
+  color: var(--muted);
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 3px;
 }
 
-.prompt {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.job.queued {
+  border-left-color: var(--muted);
+}
+
+.job.running {
+  border-left-color: var(--warn);
+}
+
+.job.done {
+  border-left-color: var(--ok);
+}
+
+.job.error {
+  border-left-color: var(--err);
+}
+
+.job .err {
+  color: var(--err);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
   white-space: nowrap;
-  opacity: 0.8;
 }
 
-.error {
-  color: #c62828;
+.job.running .badge {
+  color: var(--warn);
+}
+
+.job.done .badge {
+  color: var(--ok);
+}
+
+.job.error .badge {
+  color: var(--err);
 }

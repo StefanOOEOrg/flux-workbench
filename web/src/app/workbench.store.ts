@@ -3,7 +3,14 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
-import { DEFAULT_REQUEST, DiffEntry, ImageSettings, Job, RenderRequest } from './models';
+import {
+  DEFAULT_REQUEST,
+  DiffEntry,
+  ImageSettings,
+  Job,
+  ProjectInfo,
+  RenderRequest,
+} from './models';
 import { diffSettings, effectiveOrRequest } from './settings-diff';
 
 /**
@@ -17,7 +24,9 @@ import { diffSettings, effectiveOrRequest } from './settings-diff';
 export class WorkbenchStore {
   private readonly api = inject(ApiService);
 
-  readonly projects = signal<string[]>([]);
+  readonly projects = signal<ProjectInfo[]>([]);
+  /** Text of the project filter field (case-insensitive substring match on the id). */
+  readonly projectFilter = signal('');
   readonly selectedProject = signal<string | null>(null);
   readonly images = signal<number[]>([]);
   readonly selectedImage = signal<number | null>(null);
@@ -36,6 +45,69 @@ export class WorkbenchStore {
   readonly pendingJobs = computed(() =>
     this.jobs().filter((j) => j.status === 'queued' || j.status === 'running'),
   );
+
+  /**
+   * `projects()` filtered by `projectFilter()`: keep entries whose `id` contains the trimmed
+   * filter text, case-insensitive (`toLowerCase`). Empty/blank filter -> all projects.
+   * Order unchanged (newest first).
+   */
+  readonly filteredProjects = computed<ProjectInfo[]>(() => {
+    const needle = this.projectFilter().trim().toLowerCase();
+    if (needle === '') {
+      return this.projects();
+    }
+    return this.projects().filter((p) => p.id.toLowerCase().includes(needle));
+  });
+
+  /** Number of `running` jobs (all projects) - for the status badge in the header. */
+  readonly runningCount = computed<number>(() => {
+    return this.jobs().filter((j) => j.status === 'running').length;
+  });
+
+  /** Number of `queued` jobs (all projects) - for the status badge in the header. */
+  readonly queuedCount = computed<number>(() => {
+    return this.jobs().filter((j) => j.status === 'queued').length;
+  });
+
+  /**
+   * Pending jobs (`queued` or `running`) of the selected project, oldest first.
+   * `[]` without a selected project. Used for the placeholder tiles in the thumbnail strip.
+   */
+  readonly projectPendingJobs = computed<Job[]>(() => {
+    const project = this.selectedProject();
+    if (project === null) {
+      return [];
+    }
+    return this.jobs().filter(
+      (j) => j.project_id === project && (j.status === 'queued' || j.status === 'running'),
+    );
+  });
+
+  /**
+   * Number the next render of the selected project will get, for the button
+   * "Rendern · Bild N": `max(images()) + 1 + projectPendingJobs().length`; with no images
+   * `1 + projectPendingJobs().length`. (Each pending job will take one number before it.)
+   */
+  readonly nextImageNumber = computed<number>(() => {
+    const images = this.images();
+    const base = images.length === 0 ? 1 : Math.max(...images) + 1;
+    return base + this.projectPendingJobs().length;
+  });
+
+  /**
+   * `true` if an image is selected (`settings()` not null) AND `form().prompt` differs from
+   * `settings().request['prompt']` (a missing/non-string request prompt counts as `''`).
+   * `false` without settings.
+   */
+  readonly promptModified = computed<boolean>(() => {
+    const settings = this.settings();
+    if (settings === null) {
+      return false;
+    }
+    const prompt = settings.request['prompt'];
+    const baseline = typeof prompt === 'string' ? prompt : '';
+    return this.form().prompt !== baseline;
+  });
 
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
@@ -255,6 +327,31 @@ export class WorkbenchStore {
           break;
         }
       }
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
+  }
+
+  /**
+   * Save `comment` for the selected image: `api.saveComment(project, n, comment)`, then set
+   * `settings` to a NEW object with `comment` replaced (`settings.update(s => ({...s, comment}))`).
+   * No-op (no HTTP call) without selected project/image or if `comment === settings().comment`.
+   * Errors like everywhere else (`error` set, `settings` unchanged).
+   */
+  async saveComment(comment: string): Promise<void> {
+    const project = this.selectedProject();
+    const image = this.selectedImage();
+    const settings = this.settings();
+    if (project === null || image === null || settings === null) {
+      return;
+    }
+    if (comment === settings.comment) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.saveComment(project, image, comment));
+      this.settings.update((s) => (s === null ? s : { ...s, comment }));
+      this.error.set(null);
     } catch (err) {
       this.error.set(errorMessage(err));
     }

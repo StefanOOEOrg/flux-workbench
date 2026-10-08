@@ -1,31 +1,57 @@
+:host {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
 .strip {
   display: flex;
-  overflow-x: auto;
-  gap: 8px;
+  gap: 10px;
   align-items: flex-start;
+  width: max-content;
 }
 
-.strip figure {
+.thumb {
+  position: relative;
   margin: 0;
-  width: 160px;
+  flex: 0 0 120px;
+  height: 120px;
+  border-radius: var(--radius);
   border: 2px solid transparent;
+  overflow: hidden;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  background: var(--panel);
 }
 
-.strip img {
-  width: 160px;
-  height: 160px;
-  object-fit: contain;
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-.strip figcaption {
-  text-align: center;
-  font-size: 0.9em;
+.thumb.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.strip figure.selected {
-  border-color: #0057d2;
+.n {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pending {
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--border);
+  color: var(--muted);
+  cursor: default;
 }

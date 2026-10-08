@@ -34,6 +34,10 @@ class SubmitJob(BaseModel):
     request: dict[str, Any]
 
 
+class SaveComment(BaseModel):
+    comment: str
+
+
 def create_app(
     store: ProjectStore,
     queue: RenderQueue,
@@ -57,9 +61,9 @@ def create_app(
     _add_exception_handlers(app)
 
     @app.get("/api/projects")
-    def list_projects() -> list[str]:
-        """Return ``store.list_projects()``."""
-        return store.list_projects()
+    def list_projects() -> list[dict[str, Any]]:
+        """Return ``store.list_project_infos()`` (``[{"id", "image_count"}]``, newest first)."""
+        return store.list_project_infos()
 
     @app.post("/api/projects", status_code=201)
     def create_project(body: CreateProject) -> dict[str, str]:
@@ -86,6 +90,12 @@ def create_app(
     def get_settings(project_id: str, n: int) -> dict[str, Any]:
         """Return ``store.read_settings(project_id, n)``."""
         return store.read_settings(project_id, n)
+
+    @app.put("/api/projects/{project_id}/images/{n}/comment", status_code=204)
+    def save_comment(project_id: str, n: int, body: SaveComment) -> Response:
+        """``store.save_comment(project_id, n, body.comment)``; return 204 ``Response``."""
+        store.save_comment(project_id, n, body.comment)
+        return Response(status_code=204)
 
     @app.post("/api/projects/{project_id}/images/{n}/open", status_code=204)
     def open_image(project_id: str, n: int) -> Response:

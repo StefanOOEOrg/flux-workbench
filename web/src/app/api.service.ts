@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { ImageSettings, Job, RenderRequest } from './models';
+import { ImageSettings, Job, ProjectInfo, RenderRequest } from './models';
 
 /**
  * Thin wrapper around the server's REST API (all URLs relative, under `/api`).
@@ -14,9 +14,9 @@ import { ImageSettings, Job, RenderRequest } from './models';
 export class ApiService {
   private readonly http = inject(HttpClient);
 
-  /** `GET /api/projects` -> project ids, newest first. */
-  listProjects(): Observable<string[]> {
-    return this.http.get<string[]>('/api/projects');
+  /** `GET /api/projects` -> `[{id, image_count}]`, newest first. */
+  listProjects(): Observable<ProjectInfo[]> {
+    return this.http.get<ProjectInfo[]>('/api/projects');
   }
 
   /** `POST /api/projects` with body `{name}` -> `{id}` of the new project. */
@@ -46,6 +46,14 @@ export class ApiService {
     return this.http.post<void>(
       `/api/projects/${encodeURIComponent(projectId)}/images/${n}/open`,
       {},
+    );
+  }
+
+  /** `PUT /api/projects/{id}/images/{n}/comment` with body `{comment}` (204, no body). */
+  saveComment(projectId: string, n: number, comment: string): Observable<void> {
+    return this.http.put<void>(
+      `/api/projects/${encodeURIComponent(projectId)}/images/${n}/comment`,
+      { comment },
     );
   }
 

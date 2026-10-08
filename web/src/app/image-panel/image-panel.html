@@ -1,0 +1,76 @@
+@if (store.settings() === null) {
+  <p class="empty">Bild auswählen</p>
+} @else {
+  <div class="colhead">
+    <h3>
+      Bild {{ store.selectedImage() }}
+      @if (seed() !== null) {
+        <span class="hint">· Seed {{ seed() }}</span>
+      }
+    </h3>
+    <div class="actions">
+      <button type="button" data-testid="clone" (click)="store.cloneSelected()">Klonen</button>
+      <button
+        type="button"
+        data-testid="adopt-seed"
+        class="ghost"
+        [disabled]="seed() === null"
+        (click)="store.adoptSeed()"
+      >
+        Seed übernehmen
+      </button>
+    </div>
+  </div>
+
+  @if (previous() !== null) {
+    <h2>Änderungen zu Bild {{ previous() }}</h2>
+  }
+  <section data-testid="diff" class="diff">
+    @if (store.diff().length === 0) {
+      @if (previous() === null) {
+        <p class="hint">Erstes Bild</p>
+      } @else {
+        <p class="hint">Keine Änderungen zum Vorgänger</p>
+      }
+    } @else {
+      @for (entry of store.diff(); track entry.path) {
+        <div data-testid="diff-entry" [class]="'chip ' + entry.kind" [title]="formatDiff(entry)">
+          <b data-testid="diff-path">{{ entry.path }}</b>
+          @if (entry.kind === 'changed' || entry.kind === 'removed') {
+            <span class="old" data-testid="diff-before">{{ formatValue(entry.before) }}</span>
+          }
+          @if (entry.kind === 'changed') {
+            <span class="arrow">→</span>
+          }
+          @if (entry.kind === 'changed' || entry.kind === 'added') {
+            <span data-testid="diff-after">{{ formatValue(entry.after) }}</span>
+          }
+        </div>
+      }
+    }
+  </section>
+
+  <h2>
+    Kommentar <span data-testid="comment-state">{{ commentState() }}</span>
+  </h2>
+  <textarea
+    data-testid="comment"
+    class="comment"
+    placeholder="Notiz zu diesem Bild …"
+    [value]="store.settings()!.comment"
+    (input)="onCommentInput()"
+    (blur)="onCommentBlur($any($event.target).value)"
+  ></textarea>
+
+  <details class="all">
+    <summary>Alle Einstellungen</summary>
+    <table>
+      @for (row of rows(); track row[0]) {
+        <tr [class.changed]="changedPaths().has(row[0])">
+          <td>{{ row[0] }}</td>
+          <td>{{ formatValue(row[1]) }}</td>
+        </tr>
+      }
+    </table>
+  </details>
+}

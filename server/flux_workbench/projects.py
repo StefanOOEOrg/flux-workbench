@@ -24,6 +24,9 @@ JSON_RE = re.compile(r"^(\d+)\.json$")
 #: Umlauts are transliterated before invalid characters are dropped.
 TRANSLITERATION = {"ä": "ae", "ö": "oe", "ü": "ue", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue", "ß": "ss"}
 
+#: Maximum length of an image comment (characters).
+MAX_COMMENT_LEN = 5000
+
 
 class ProjectError(ValueError):
     """Invalid input (bad name, bad id, bad JSON). API maps this to HTTP 400."""
@@ -93,6 +96,21 @@ class ProjectStore:
             ),
             reverse=True,
         )
+
+    def list_project_infos(self) -> list[dict[str, Any]]:
+        """Return ``[{"id": str, "image_count": int}, ...]`` in the order of ``list_projects()``.
+
+        ``image_count`` = number of ``<n>.png`` files (``len(self.list_images(id))``).
+        A project folder deleted between listing and counting is skipped (catch ``NotFound``).
+        """
+        infos = []
+        for project_id in self.list_projects():
+            try:
+                count = len(self.list_images(project_id))
+            except NotFound:
+                continue
+            infos.append({"id": project_id, "image_count": count})
+        return infos
 
     def create_project(self, name: str) -> str:
         """Create ``root/<YYYYMMDD>-<sanitize_name(name)>`` and return its id.
@@ -167,18 +185,32 @@ class ProjectStore:
         return path
 
     def read_settings(self, project_id: str, n: int) -> dict[str, Any]:
-        """Read ``<n>.json`` and return it as ``{"request": dict, "effective": dict | None}``.
+        """Read ``<n>.json``; return ``{"request": dict, "effective": dict|None, "comment": str}``.
 
         Normalisation: if the parsed JSON is a dict that has neither a ``"request"``
         nor an ``"effective"`` key (older, hand-written files), return
-        ``{"request": data, "effective": None}``. If ``"effective"`` is missing, use ``None``;
-        if ``"request"`` is missing, use ``{}``.
+        ``{"request": data, "effective": None, "comment": ""}``. If ``"effective"`` is missing,
+        use ``None``; if ``"request"`` is missing, use ``{}``.
+        ``"comment"``: the file's ``"comment"`` value if it is a ``str``, otherwise ``""``
+        (missing, ``null``, number, ...).
 
         Raises:
             ProjectError: invalid project id, ``n < 1``, file is not valid JSON
                 or not a JSON object.
             NotFound: project or ``<n>.json`` does not exist.
         """
+        data = self._load_json(project_id, n)
+        comment = data.get("comment")
+        if "request" not in data and "effective" not in data:
+            data = {"request": data, "effective": None}
+        return {
+            "request": data.get("request", {}),
+            "effective": data.get("effective"),
+            "comment": comment if isinstance(comment, str) else "",
+        }
+
+    def _load_json(self, project_id: str, n: int) -> dict[str, Any]:
+        """Load and validate ``<n>.json`` as a JSON object (raises like ``read_settings``)."""
         if n < 1:
             raise ProjectError(f"Ungültige Bildnummer: {n}")
         folder = self.project_dir(project_id)
@@ -191,9 +223,34 @@ class ProjectStore:
             raise ProjectError(f"Ungültiges JSON in {path.name}: {exc}") from exc
         if not isinstance(data, dict):
             raise ProjectError(f"Settings sind kein JSON-Objekt: {path.name}")
+        return data
+
+    def save_comment(self, project_id: str, n: int, comment: str) -> None:
+        """Store ``comment`` as the ``"comment"`` field of ``<n>.json``; keep everything else.
+
+        Steps: validate like ``read_settings`` (same exceptions, same messages for invalid JSON);
+        if ``len(comment) > MAX_COMMENT_LEN`` raise ``ProjectError("Kommentar zu lang")``.
+        Load the raw JSON dict. If it is an old plain dict (neither ``"request"`` nor
+        ``"effective"`` key), first convert it to ``{"request": data, "effective": None}`` so the
+        comment does not end up inside the request. Set ``data["comment"] = comment`` and write the
+        file back with ``json.dumps(data, indent=2, ensure_ascii=False)`` (UTF-8), like
+        ``save_render``. An empty string is stored as ``""`` (not removed).
+        Never touches ``<n>.png``.
+
+        Raises:
+            ProjectError: invalid id, ``n < 1``, invalid JSON / not an object, comment too long.
+            NotFound: project or ``<n>.json`` does not exist.
+        """
+        if len(comment) > MAX_COMMENT_LEN:
+            raise ProjectError("Kommentar zu lang")
+        data = self._load_json(project_id, n)
         if "request" not in data and "effective" not in data:
-            return {"request": data, "effective": None}
-        return {"request": data.get("request", {}), "effective": data.get("effective")}
+            data = {"request": data, "effective": None}
+        data["comment"] = comment
+        folder = self.project_dir(project_id)
+        (folder / f"{n}.json").write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     def next_number(self, project_id: str) -> int:
         """Return 1 + the highest ``n`` of any ``<n>.png`` or ``<n>.json`` (1 if there is none).

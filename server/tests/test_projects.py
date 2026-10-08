@@ -2,7 +2,13 @@ import json
 
 import pytest
 
-from flux_workbench.projects import NotFound, ProjectError, ProjectExists, sanitize_name
+from flux_workbench.projects import (
+    MAX_COMMENT_LEN,
+    NotFound,
+    ProjectError,
+    ProjectExists,
+    sanitize_name,
+)
 
 from .conftest import PNG, make_project
 
@@ -96,7 +102,7 @@ def test_image_path(store) -> None:
 def test_read_settings_new_format(store) -> None:
     data = {"request": {"prompt": "p"}, "effective": {"prompt": "p", "seed": 5}}
     make_project(store, "20261007-x", {1: data})
-    assert store.read_settings("20261007-x", 1) == data
+    assert store.read_settings("20261007-x", 1) == {**data, "comment": ""}
 
 
 def test_read_settings_plain_dict_is_request(store) -> None:
@@ -104,13 +110,73 @@ def test_read_settings_plain_dict_is_request(store) -> None:
     assert store.read_settings("20261007-x", 1) == {
         "request": {"prompt": "p", "steps": 3},
         "effective": None,
+        "comment": "",
     }
 
 
 def test_read_settings_missing_keys_filled(store) -> None:
     make_project(store, "20261007-x", {1: {"effective": {"a": 1}}, 2: {"request": {"a": 1}}})
-    assert store.read_settings("20261007-x", 1) == {"request": {}, "effective": {"a": 1}}
-    assert store.read_settings("20261007-x", 2) == {"request": {"a": 1}, "effective": None}
+    assert store.read_settings("20261007-x", 1) == {
+        "request": {},
+        "effective": {"a": 1},
+        "comment": "",
+    }
+    assert store.read_settings("20261007-x", 2) == {
+        "request": {"a": 1},
+        "effective": None,
+        "comment": "",
+    }
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("gut", "gut"), (None, ""), (5, ""), ("", "")])
+def test_read_settings_comment(store, raw: object, expected: str) -> None:
+    make_project(store, "20261007-x", {1: {"request": {}, "effective": None, "comment": raw}})
+    assert store.read_settings("20261007-x", 1)["comment"] == expected
+
+
+def test_save_comment_keeps_request_and_effective(store) -> None:
+    data = {"request": {"prompt": "p"}, "effective": {"seed": 5}}
+    folder = make_project(store, "20261007-x", {3: data})
+    png_before = (folder / "3.png").read_bytes()
+    store.save_comment("20261007-x", 3, "Bus verwaschen – ä")
+    saved = json.loads((folder / "3.json").read_text(encoding="utf-8"))
+    assert saved == {**data, "comment": "Bus verwaschen – ä"}
+    assert (folder / "3.png").read_bytes() == png_before
+    store.save_comment("20261007-x", 3, "")
+    assert store.read_settings("20261007-x", 3)["comment"] == ""
+
+
+def test_save_comment_converts_plain_dict(store) -> None:
+    folder = make_project(store, "20261007-x", {1: {"prompt": "p"}})
+    store.save_comment("20261007-x", 1, "c")
+    saved = json.loads((folder / "1.json").read_text(encoding="utf-8"))
+    assert saved == {"request": {"prompt": "p"}, "effective": None, "comment": "c"}
+
+
+def test_save_comment_errors(store) -> None:
+    folder = make_project(store, "20261007-x", {1: {"request": {}}})
+    (folder / "2.json").write_text("not json")
+    with pytest.raises(ProjectError):
+        store.save_comment("20261007-x", 1, "x" * (MAX_COMMENT_LEN + 1))
+    with pytest.raises(ProjectError):
+        store.save_comment("20261007-x", 2, "c")
+    with pytest.raises(ProjectError):
+        store.save_comment("20261007-x", 0, "c")
+    with pytest.raises(ProjectError):
+        store.save_comment("../x", 1, "c")
+    with pytest.raises(NotFound):
+        store.save_comment("20261007-x", 9, "c")
+    store.save_comment("20261007-x", 1, "x" * MAX_COMMENT_LEN)
+
+
+def test_list_project_infos(store) -> None:
+    make_project(store, "20261001-a", {1: {}, 2: {}})
+    make_project(store, "20261005-b", {})
+    (store.root / "20261005-b" / "7.png").write_bytes(PNG)
+    assert store.list_project_infos() == [
+        {"id": "20261005-b", "image_count": 1},
+        {"id": "20261001-a", "image_count": 2},
+    ]
 
 
 def test_read_settings_errors(store) -> None:
