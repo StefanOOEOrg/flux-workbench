@@ -109,23 +109,13 @@ class RenderQueue:
         job.status = "running"
         try:
             result = await self.renderer.render(job.request)
+            n = self.store.save_render(
+                job.project_id, result.png, {"request": job.request, "effective": result.effective}
+            )
         except BridgeError as exc:
             job.status = "error"
             job.error = str(exc)
             return
-        except (NotFound, ProjectError):
-            job.status = "error"
-            job.error = f"Projekt nicht gefunden: {job.project_id}"
-            return
-        except Exception as exc:
-            log.exception("Render job %s fehlgeschlagen", job.id)
-            job.status = "error"
-            job.error = f"Interner Fehler: {exc}"
-            return
-        try:
-            n = self.store.save_render(
-                job.project_id, result.png, {"request": job.request, "effective": result.effective}
-            )
         except (NotFound, ProjectError):
             job.status = "error"
             job.error = f"Projekt nicht gefunden: {job.project_id}"
