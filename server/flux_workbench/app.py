@@ -59,42 +59,44 @@ def create_app(
     @app.get("/api/projects")
     def list_projects() -> list[str]:
         """Return ``store.list_projects()``."""
-        raise NotImplementedError
+        return store.list_projects()
 
     @app.post("/api/projects", status_code=201)
     def create_project(body: CreateProject) -> dict[str, str]:
         """Return ``{"id": store.create_project(body.name)}``."""
-        raise NotImplementedError
+        return {"id": store.create_project(body.name)}
 
     @app.delete("/api/projects/{project_id}", status_code=204)
     def delete_project(project_id: str) -> Response:
         """``store.delete_project(project_id)``; return ``Response(status_code=204)``."""
-        raise NotImplementedError
+        store.delete_project(project_id)
+        return Response(status_code=204)
 
     @app.get("/api/projects/{project_id}/images")
     def list_images(project_id: str) -> list[int]:
         """Return ``store.list_images(project_id)``."""
-        raise NotImplementedError
+        return store.list_images(project_id)
 
     @app.get("/api/projects/{project_id}/images/{n}")
     def get_image(project_id: str, n: int) -> FileResponse:
         """Return ``FileResponse(store.image_path(project_id, n), media_type="image/png")``."""
-        raise NotImplementedError
+        return FileResponse(store.image_path(project_id, n), media_type="image/png")
 
     @app.get("/api/projects/{project_id}/images/{n}/settings")
     def get_settings(project_id: str, n: int) -> dict[str, Any]:
         """Return ``store.read_settings(project_id, n)``."""
-        raise NotImplementedError
+        return store.read_settings(project_id, n)
 
     @app.post("/api/projects/{project_id}/images/{n}/open", status_code=204)
     def open_image(project_id: str, n: int) -> Response:
         """``viewer(store.image_path(project_id, n))``; return ``Response(status_code=204)``."""
-        raise NotImplementedError
+        viewer(store.image_path(project_id, n))
+        return Response(status_code=204)
 
     @app.get("/api/queue")
     def list_jobs() -> list[dict[str, Any]]:
         """Return ``[asdict(job) for job in queue.list_jobs()]``."""
-        raise NotImplementedError
+        return [asdict(job) for job in queue.list_jobs()]
 
     @app.post("/api/queue", status_code=201)
     async def submit_job(body: SubmitJob) -> dict[str, Any]:
@@ -102,12 +104,13 @@ def create_app(
 
         Must stay ``async def`` so ``put_nowait`` runs on the event loop of the worker.
         """
-        raise NotImplementedError
+        return asdict(queue.submit(body.project_id, body.request))
 
     @app.delete("/api/queue/{job_id}", status_code=204)
     async def cancel_job(job_id: str) -> Response:
         """``queue.cancel(job_id)``; return ``Response(status_code=204)``."""
-        raise NotImplementedError
+        queue.cancel(job_id)
+        return Response(status_code=204)
 
     if web_dist is not None and web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
