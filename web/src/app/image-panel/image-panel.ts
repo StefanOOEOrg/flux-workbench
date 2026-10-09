@@ -83,23 +83,26 @@ export class ImagePanel {
 
   /** `formatDuration(store.settings()?.render_seconds ?? null)`. */
   readonly renderTime = computed<string>(() => {
-    throw new Error('not implemented');
+    return formatDuration(this.store.settings()?.render_seconds ?? null);
   });
 
   /** Show the lightbox (`lightboxOpen.set(true)`); no-op without a selected image. */
   openLightbox(): void {
-    throw new Error('not implemented');
+    if (this.store.selectedImage() === null) {
+      return;
+    }
+    this.lightboxOpen.set(true);
   }
 
   /** Hide the lightbox (`lightboxOpen.set(false)`). */
   closeLightbox(): void {
-    throw new Error('not implemented');
+    this.lightboxOpen.set(false);
   }
 
   /** Esc anywhere on the page closes the lightbox (calls `closeLightbox()`). */
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    throw new Error('not implemented');
+    this.closeLightbox();
   }
 
   /** `flattenSettings(effectiveOrRequest(settings))`, or `[]` without settings. */

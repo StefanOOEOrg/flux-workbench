@@ -126,8 +126,25 @@ export class WorkbenchStore {
    * settings diff; cast via `as unknown as Record<string, unknown>`).
    */
   readonly formDirty = computed<boolean>(() => {
-    throw new Error('not implemented');
+    return (
+      diffSettings(
+        this.formBaseline() as unknown as Record<string, unknown>,
+        this.form() as unknown as Record<string, unknown>,
+      ).length > 0
+    );
   });
+
+  /**
+   * `request[key]` of `s` as a string: a missing / non-string value counts as `''`.
+   * `null` when `s` is null (caller passes `null` as "no predecessor").
+   */
+  private requestText(s: ImageSettings | null, key: string): string | null {
+    if (s === null) {
+      return null;
+    }
+    const v = s.request[key];
+    return typeof v === 'string' ? v : '';
+  }
 
   /**
    * Word diff of the prompt for the "Bild" column:
@@ -137,12 +154,22 @@ export class WorkbenchStore {
    * `[]` without `settings()`.
    */
   readonly promptDiff = computed<WordSegment[]>(() => {
-    throw new Error('not implemented');
+    const settings = this.settings();
+    if (settings === null) {
+      return [];
+    }
+    const prev = this.requestText(this.previousSettings(), 'prompt');
+    return diffWords(prev, this.requestText(settings, 'prompt') ?? '');
   });
 
   /** Same as `promptDiff`, for `request['negative']`. */
   readonly negativeDiff = computed<WordSegment[]>(() => {
-    throw new Error('not implemented');
+    const settings = this.settings();
+    if (settings === null) {
+      return [];
+    }
+    const prev = this.requestText(this.previousSettings(), 'negative');
+    return diffWords(prev, this.requestText(settings, 'negative') ?? '');
   });
 
   /**
@@ -150,7 +177,10 @@ export class WorkbenchStore {
    * `confirmFn('Ungerenderte Änderungen verwerfen?')` (exactly this text).
    */
   private confirmDiscard(): boolean {
-    throw new Error('not implemented');
+    if (!this.formDirty()) {
+      return true;
+    }
+    return this.confirmFn('Ungerenderte Änderungen verwerfen?') ?? true;
   }
 
   /**
@@ -160,7 +190,12 @@ export class WorkbenchStore {
    * `render_seconds` (they are not part of `request`).
    */
   private loadForm(request: Record<string, unknown>): void {
-    throw new Error('not implemented');
+    const form = structuredClone(request) as unknown as RenderRequest;
+    if (typeof form.prompt !== 'string') {
+      form.prompt = '';
+    }
+    this.form.set(form);
+    this.formBaseline.set(structuredClone(form));
   }
 
   /** `projects.set(await listProjects())`. */
@@ -176,8 +211,8 @@ export class WorkbenchStore {
   /**
    * Create a project, reload the list, then select it.
    * Blank `name` (after trim) -> set `error = 'Projektname fehlt'`, no HTTP call.
-   * TODO(WP2, #19): ask BEFORE the HTTP call: if `!confirmDiscard()` return (no project is
-   * created). After creating, open it with `loadProject(id)` (not `selectProject`, so the
+   * Asks BEFORE the HTTP call: if `!confirmDiscard()` return (no project is created).
+   * After creating, open it with `loadProject(id)` (not `selectProject`, so the
    * question does not come twice).
    */
   async createProject(name: string): Promise<void> {
@@ -185,10 +220,13 @@ export class WorkbenchStore {
       this.error.set('Projektname fehlt');
       return;
     }
+    if (!this.confirmDiscard()) {
+      return;
+    }
     try {
       const { id } = await firstValueFrom(this.api.createProject(name));
       await this.loadProjects();
-      await this.selectProject(id);
+      await this.loadProject(id);
       this.error.set(null);
     } catch (err) {
       this.error.set(errorMessage(err));
@@ -198,9 +236,9 @@ export class WorkbenchStore {
   /**
    * Delete the project (the component asks for confirmation before), reload the list.
    * If it was the selected project: `selectedProject`, `selectedImage`, `settings` -> null,
-   * `images` and `diff` -> [], `form` -> fresh copy of `DEFAULT_REQUEST`.
-   * TODO(WP2, #19): additionally `previousSettings` -> null and `formBaseline` -> fresh copy of
-   * `DEFAULT_REQUEST` (no discard question - deleting was already confirmed).
+   * `images` and `diff` -> [], `form` -> fresh copy of `DEFAULT_REQUEST`, `previousSettings` ->
+   * null and `formBaseline` -> fresh copy of `DEFAULT_REQUEST` (no discard question - deleting
+   * was already confirmed).
    */
   async deleteProject(id: string): Promise<void> {
     try {
@@ -214,6 +252,8 @@ export class WorkbenchStore {
         this.images.set([]);
         this.diff.set([]);
         this.form.set(structuredClone(DEFAULT_REQUEST));
+        this.previousSettings.set(null);
+        this.formBaseline.set(structuredClone(DEFAULT_REQUEST));
       }
       this.error.set(null);
     } catch (err) {
@@ -226,7 +266,10 @@ export class WorkbenchStore {
    * without any change. Otherwise `await loadProject(id)`.
    */
   async selectProject(id: string): Promise<void> {
-    throw new Error('not implemented');
+    if (!this.confirmDiscard()) {
+      return;
+    }
+    await this.loadProject(id);
   }
 
   /**
@@ -239,7 +282,26 @@ export class WorkbenchStore {
    * Errors like everywhere else.
    */
   private async loadProject(id: string): Promise<void> {
-    throw new Error('not implemented');
+    try {
+      this.selectedProject.set(id);
+      const list = await firstValueFrom(this.api.listImages(id));
+      this.images.set(list);
+      this.imagesVersion.update((v) => v + 1);
+      if (list.length === 0) {
+        this.selectedImage.set(null);
+        this.settings.set(null);
+        this.previousSettings.set(null);
+        this.diff.set([]);
+        this.loadForm(DEFAULT_REQUEST as unknown as Record<string, unknown>);
+        this.error.set(null);
+        return;
+      }
+      if (await this.showImage(list[list.length - 1])) {
+        this.loadForm(this.settings()!.request);
+      }
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
@@ -250,7 +312,15 @@ export class WorkbenchStore {
    * Clicking the already selected image also reloads the form (after the same question).
    */
   async selectImage(n: number): Promise<void> {
-    throw new Error('not implemented');
+    if (this.selectedProject() === null) {
+      return;
+    }
+    if (!this.confirmDiscard()) {
+      return;
+    }
+    if (await this.showImage(n)) {
+      this.loadForm(this.settings()!.request);
+    }
   }
 
   /**
@@ -265,7 +335,41 @@ export class WorkbenchStore {
    * If the settings of `n` cannot be loaded: `error` set, return `false`, nothing else changes.
    */
   private async showImage(n: number): Promise<boolean> {
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      return false;
+    }
+    let settings: ImageSettings;
+    try {
+      settings = await firstValueFrom(this.api.getSettings(project, n));
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return false;
+    }
+    this.settings.set(settings);
+    this.selectedImage.set(n);
+    this.error.set(null);
+    const images = this.images();
+    const idx = images.indexOf(n);
+    const prev = idx > 0 ? images[idx - 1] : null;
+    if (prev === null) {
+      this.previousSettings.set(null);
+      this.diff.set([]);
+      return true;
+    }
+    try {
+      const prevSettings = await firstValueFrom(this.api.getSettings(project, prev));
+      this.previousSettings.set(prevSettings);
+      this.diff.set(
+        diffSettings(effectiveOrRequest(prevSettings), effectiveOrRequest(settings)).filter(
+          (e) => e.path !== 'prompt' && e.path !== 'negative',
+        ),
+      );
+    } catch {
+      this.previousSettings.set(null);
+      this.diff.set([]);
+    }
+    return true;
   }
 
   /**
@@ -284,7 +388,7 @@ export class WorkbenchStore {
    * Submit `form()` for the selected project, then `refreshJobs()`.
    * No selected project -> `error = 'Kein Projekt ausgewählt'`, no HTTP call.
    * Empty prompt (after trim) -> `error = 'Prompt fehlt'`, no HTTP call.
-   * TODO(WP2, #19): after a SUCCESSFUL `submitJob` (before `refreshJobs`) set
+   * After a SUCCESSFUL `submitJob` (before `refreshJobs`) set
    * `formBaseline = structuredClone(form())` - the form now counts as rendered. Not on errors.
    */
   async submit(): Promise<void> {
@@ -300,6 +404,7 @@ export class WorkbenchStore {
     try {
       await firstValueFrom(this.api.submitJob(project, this.form()));
       this.error.set(null);
+      this.formBaseline.set(structuredClone(this.form()));
       await this.refreshJobs();
     } catch (err) {
       this.error.set(errorMessage(err));
@@ -322,10 +427,10 @@ export class WorkbenchStore {
    * If a job of the selected project changed to `done` since the previous poll (job id was
    * not `done` in the old `jobs()` list, or was not in it), reload `images` (increment
    * `imagesVersion`) and show the image of the newest such job.
-   * TODO(WP2, #19): this automatic selection must NEVER ask (`confirmFn`) and must NOT
-   * overwrite unrendered changes: instead of `selectImage(job.image_n)` call
-   * `showImage(job.image_n)`, and only if that returned `true` AND `!formDirty()` also
-   * `loadForm(settings()!.request)`. With a dirty form, form and baseline stay untouched.
+   * This automatic selection must NEVER ask (`confirmFn`) and must NOT overwrite unrendered
+   * changes: instead of `selectImage(job.image_n)` call `showImage(job.image_n)`, and only if
+   * that returned `true` AND `!formDirty()` also `loadForm(settings()!.request)`. With a dirty
+   * form, form and baseline stay untouched.
    * Errors: set `error` like everywhere else. EXCEPTION to the class rule: a successful poll must
    * NOT reset `error` to null (it runs every 2 s and would hide every message within 2 s).
    */
@@ -354,7 +459,9 @@ export class WorkbenchStore {
       for (let i = newlyDone.length - 1; i >= 0; i--) {
         const job = newlyDone[i];
         if (job.image_n !== null) {
-          await this.selectImage(job.image_n);
+          if ((await this.showImage(job.image_n)) && !this.formDirty()) {
+            this.loadForm(this.settings()!.request);
+          }
           break;
         }
       }
