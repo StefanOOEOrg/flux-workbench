@@ -108,7 +108,6 @@ class RenderQueue:
           {"request": job.request, "effective": result.effective,
           "render_seconds": render_seconds})``; then ``image_n = n``, ``status = "done"``.
         - Errors (nothing is saved, no ``render_seconds`` anywhere):
-          TODO(WP1): measuring and ``render_seconds`` are not implemented yet.
         - ``BridgeError`` -> ``status = "error"``, ``error = str(exc)``.
         - ``NotFound`` / ``ProjectError`` (project deleted meanwhile) ->
           ``status = "error"``, ``error = f"Projekt nicht gefunden: {job.project_id}"``.
@@ -119,9 +118,17 @@ class RenderQueue:
             return
         job.status = "running"
         try:
+            start = self.clock()
             result = await self.renderer.render(job.request)
+            render_seconds = round(self.clock() - start, 1)
             n = self.store.save_render(
-                job.project_id, result.png, {"request": job.request, "effective": result.effective}
+                job.project_id,
+                result.png,
+                {
+                    "request": job.request,
+                    "effective": result.effective,
+                    "render_seconds": render_seconds,
+                },
             )
         except BridgeError as exc:
             job.status = "error"

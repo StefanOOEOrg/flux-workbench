@@ -188,8 +188,6 @@ class ProjectStore:
         """Read ``<n>.json``; return ``{"request": dict, "effective": dict|None, "comment": str,
         "render_seconds": float|None}``.
 
-        TODO(WP1): ``"render_seconds"`` is not returned yet - add it per the rule below.
-
         Normalisation: if the parsed JSON is a dict that has neither a ``"request"``
         nor an ``"effective"`` key (older, hand-written files), return
         ``{"request": data, "effective": None, "comment": ""}``. If ``"effective"`` is missing,
@@ -209,10 +207,17 @@ class ProjectStore:
         comment = data.get("comment")
         if "request" not in data and "effective" not in data:
             data = {"request": data, "effective": None}
+            render_seconds: float | None = None
+        else:
+            raw = data.get("render_seconds")
+            render_seconds = (
+                float(raw) if isinstance(raw, (int, float)) and not isinstance(raw, bool) else None
+            )
         return {
             "request": data.get("request", {}),
             "effective": data.get("effective"),
             "comment": comment if isinstance(comment, str) else "",
+            "render_seconds": render_seconds,
         }
 
     def _load_json(self, project_id: str, n: int) -> dict[str, Any]:
