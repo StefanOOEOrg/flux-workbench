@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Flux Workbench – UI draft v3</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1e222b; --border: #2a2f3a;
+    --text: #e6e8ec; --muted: #8b93a3; --accent: #7c5cff; --accent-2: #9d85ff;
+    --ok: #3ecf8e; --warn: #f5a524; --err: #f2555a; --add: #3ecf8e; --rem: #f2555a; --chg: #f5a524;
+    --radius: 10px;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 13px; color: var(--text); background: var(--bg);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: grid; grid-template-rows: 48px minmax(0, 1fr); overflow: hidden; }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
+           background: var(--panel-2); color: var(--text); padding: 6px 12px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.ghost { background: transparent; }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--bg);
+           border: 1px solid var(--border); border-radius: 7px; padding: 5px 8px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .hint { font-size: 11px; color: var(--muted); }
+
+  /* Header */
+  header { display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  .logo { font-weight: 700; } .logo span { color: var(--accent-2); }
+  .crumb { color: var(--muted); } .spacer { flex: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+
+  /* Base grid: projects/queue left, workspace right */
+  .app { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: 0; }
+
+  /* Column 1: projects + queue */
+  aside { border-right: 1px solid var(--border); background: var(--panel); padding: 14px; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 18px; min-height: 0; overflow: hidden; }
+  aside > section:first-child { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); min-height: 0; }
+  .newproj { display: flex; gap: 6px; } .newproj input { flex: 1; min-width: 0; }
+  .search { width: 100%; margin-top: 8px; }
+  .projects { list-style: none; margin: 6px 0 0; padding: 0 2px 0 0; display: grid; gap: 2px; align-content: start; overflow-y: auto; min-height: 0; }
+  .projects li { display: flex; align-items: center; justify-content: space-between; padding: 7px 9px; border-radius: 8px; color: var(--muted); }
+  .projects li:hover { background: var(--panel-2); }
+  .projects li.sel { background: rgba(124,92,255,.15); color: var(--text); }
+  .projects small { color: var(--muted); font-size: 11px; }
+  .projects .del { opacity: 0; border: none; background: none; color: var(--muted); padding: 0 4px; }
+  .projects li:hover .del { opacity: 1; }
+  .queue { border-top: 1px solid var(--border); padding-top: 14px; max-height: 40vh; overflow-y: auto; }
+  .jobs { display: grid; gap: 6px; }
+  .job { padding: 8px 10px; border-radius: 8px; background: var(--panel-2); border-left: 3px solid var(--border); }
+  .job .row { display: flex; justify-content: space-between; align-items: center; }
+  .job .p { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 3px; }
+  .job.running { border-left-color: var(--warn); } .job.queued { border-left-color: var(--muted); }
+  .job.done { border-left-color: var(--ok); } .job.error { border-left-color: var(--err); }
+  .job .err { color: var(--err); font-size: 12px; margin-top: 3px; }
+  .badge { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--bg); color: var(--muted); }
+  .running .badge { color: var(--warn); } .done .badge { color: var(--ok); } .error .badge { color: var(--err); }
+  .bar { height: 3px; background: var(--bg); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 40%; background: var(--warn); }
+
+  /* Workspace: thumbnails across the full width on top, equal-height columns 2–4 below */
+  .work { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; padding: 14px 0 14px 14px; min-height: 0; }
+  .strip { display: flex; gap: 10px; overflow-x: auto; padding: 0 14px 6px 0; }
+  .thumb { position: relative; flex: 0 0 120px; height: 120px; border-radius: var(--radius); border: 2px solid transparent; overflow: hidden; }
+  .thumb.sel { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,.25); }
+  .thumb .n { position: absolute; left: 6px; top: 6px; background: rgba(0,0,0,.6); padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .thumb .new { position: absolute; right: 6px; top: 6px; background: var(--accent); padding: 1px 6px; border-radius: 999px; font-size: 10px; }
+  .thumb.pending { border: 2px dashed var(--border); display: grid; place-items: center; color: var(--muted); background: var(--panel); }
+  .img1 { background: linear-gradient(135deg,#2d6a4f,#1b263b 60%,#e9c46a); }
+  .img2 { background: linear-gradient(160deg,#264653,#2a9d8f 50%,#e76f51); }
+  .img3 { background: linear-gradient(120deg,#3a0ca3,#4361ee 50%,#4cc9f0); }
+  .img4 { background: linear-gradient(140deg,#1d3557,#457b9d 55%,#f1faee); }
+  .img5 { background: linear-gradient(150deg,#2b2d42,#8d99ae 50%,#ef233c); }
+  .img6 { background: linear-gradient(130deg,#3d405b,#81b29a 50%,#f2cc8f); }
+  .img7 { background: linear-gradient(170deg,#003049,#d62828 55%,#fcbf49); }
+  .img8 { background: linear-gradient(110deg,#22223b,#4a4e69 50%,#c9ada7); }
+  .img9 { background: linear-gradient(145deg,#283618,#606c38 50%,#dda15e); }
+  .img10 { background: linear-gradient(155deg,#0b090a,#660708 50%,#e5383b); }
+
+  .cols { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr) minmax(320px, 1.15fr); gap: 14px; min-height: 0; padding-right: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; min-height: 0; overflow: auto; }
+  .colhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .colhead h3 { margin: 0; font-size: 15px; }
+  .actions { display: flex; gap: 6px; }
+
+  /* Column 2: image info, diff, comment, all settings */
+  .diff { display: grid; gap: 6px; margin-bottom: 16px; }
+  .chip { display: flex; gap: 8px; align-items: baseline; padding: 6px 9px; border-radius: 7px; background: var(--panel-2); font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .chip b { font-weight: 600; min-width: 105px; }
+  .chip.chg { border-left: 3px solid var(--chg); } .chip.add { border-left: 3px solid var(--add); } .chip.rem { border-left: 3px solid var(--rem); }
+  .old { color: var(--muted); text-decoration: line-through; } .arrow { color: var(--muted); }
+  details.all summary { cursor: pointer; list-style: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  td:first-child { color: var(--muted); width: 45%; font-family: ui-monospace, Menlo, monospace; }
+  tr.changed td { background: rgba(245,165,36,.08); } tr.changed td:first-child { color: var(--chg); }
+  .comment { width: 100%; min-height: 90px; resize: vertical; line-height: 1.4; }
+
+  /* Column 3: parameter groups, collapsed by default */
+  .group { border-top: 1px solid var(--border); padding: 10px 0; }
+  .colhead + .group { border-top: none; padding-top: 0; }
+  .group summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 600; }
+  .group summary::-webkit-details-marker { display: none; }
+  .group summary .sum { color: var(--muted); font-weight: 400; font-size: 11px; font-family: ui-monospace, Menlo, monospace; }
+  .group[open] summary { margin-bottom: 10px; }
+  .group summary::after { content: "▸"; color: var(--muted); margin-left: 8px; }
+  .group[open] summary::after { content: "▾"; }
+  .group summary .t { flex: 1; }
+  .fields { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+  .f { display: grid; gap: 4px; }
+  .f span { font-size: 11px; color: var(--muted); }
+  .f input[type=number] { width: 84px; } .f.wide input { width: 120px; }
+  .f select { min-width: 120px; }
+  .neg textarea { width: 100%; min-height: 56px; resize: vertical; }
+  .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; }
+  .sw { width: 30px; height: 17px; border-radius: 999px; background: var(--accent); position: relative; }
+  .sw::after { content: ""; position: absolute; right: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; }
+  .sub { display: flex; gap: 10px; margin: 8px 0 4px 38px; }
+
+  /* Column 4: prompt only, full height, render button at the bottom */
+  .promptcol { display: grid; grid-template-rows: auto minmax(0, 1fr) auto 90px auto; gap: 10px; overflow: hidden; }
+  .promptcol textarea { width: 100%; height: 100%; resize: none; line-height: 1.5; font-size: 14px; padding: 12px; }
+  .promptcol textarea.negp { font-size: 13px; padding: 8px 12px; }
+  .modified { color: var(--warn); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .renderbar { display: flex; gap: 8px; }
+  .renderbar .primary { flex: 1; padding: 11px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Flux <span>Workbench</span></div>
+  <div class="crumb">/ 20261008-Green_Car_London</div>
+  <div class="spacer"></div>
+  <div class="pill"><span class="dot"></span> 1 running · 1 queued</div>
+</header>
+
+<div class="app">
+  <!-- Column 1 -->
+  <aside>
+    <section>
+      <h2>Projects <span style="float:right">14</span></h2>
+      <div class="newproj"><input placeholder="New project …"><button>+</button></div>
+      <input class="search" placeholder="🔍 Filter projects …">
+      <ul class="projects">
+        <li class="sel"><div>Green_Car_London<br><small>08.10.2026 · 10 images</small></div><button class="del">✕</button></li>
+        <li><div>Portrait_Studio<br><small>06.10.2026 · 12 images</small></div><button class="del">✕</button></li>
+        <li><div>Anime_Cat<br><small>02.10.2026 · 3 images</small></div><button class="del">✕</button></li>
+        <li><div>Mountains_Fog<br><small>29.09.2026 · 8 images</small></div><button class="del">✕</button></li>
+        <li><div>Product_Watch<br><small>27.09.2026 · 21 images</small></div><button class="del">✕</button></li>
+        <li><div>Cyberpunk_Alley<br><small>25.09.2026 · 6 images</small></div><button class="del">✕</button></li>
+        <li><div>Dog_on_Beach<br><small>22.09.2026 · 4 images</small></div><button class="del">✕</button></li>
+        <li><div>Logo_Variants<br><small>20.09.2026 · 17 images</small></div><button class="del">✕</button></li>
+        <li><div>Kitchen_Interior<br><small>18.09.2026 · 9 images</small></div><button class="del">✕</button></li>
+        <li><div>Oldtimer_Garage<br><small>15.09.2026 · 5 images</small></div><button class="del">✕</button></li>
+      </ul>
+    </section>
+    <section class="queue">
+      <h2>Queue</h2>
+      <div class="jobs">
+        <div class="job running"><div class="row"><span>#11 · Green_Car</span><span class="badge">running 1:12</span></div><div class="p">A green car on the road in London, golden hour…</div><div class="bar"><i></i></div></div>
+        <div class="job queued"><div class="row"><span>#12 · Green_Car</span><span class="badge">queued</span></div><div class="p">A green car on the road in London, rain…</div></div>
+        <div class="job error"><div class="row"><span>Portrait_Studio</span><span class="badge">Error</span></div><div class="err">HTTP 400: steps must be ≤ 100</div></div>
+        <div class="job done"><div class="row"><span>#10 · Green_Car</span><span class="badge">done</span></div></div>
+      </div>
+    </section>
+  </aside>
+
+  <div class="work">
+    <!-- Thumbnails across the full width up to the right edge -->
+    <div class="strip">
+      <div class="thumb img1"><span class="n">1</span></div>
+      <div class="thumb img2"><span class="n">2</span></div>
+      <div class="thumb img3"><span class="n">3</span></div>
+      <div class="thumb img4"><span class="n">4</span></div>
+      <div class="thumb img5 sel"><span class="n">5</span></div>
+      <div class="thumb img6"><span class="n">6</span></div>
+      <div class="thumb img7"><span class="n">7</span></div>
+      <div class="thumb img8"><span class="n">8</span></div>
+      <div class="thumb img9"><span class="n">9</span></div>
+      <div class="thumb img10"><span class="n">10</span><span class="new">new</span></div>
+      <div class="thumb pending">#11 …</div>
+    </div>
+
+    <div class="cols">
+      <!-- Column 2: image info + diff + comment -->
+      <section class="card">
+        <div class="colhead">
+          <h3>Image 5 <span class="hint">· Seed 482913</span></h3>
+          <div class="actions"><button>Clone</button><button class="ghost">Use seed</button></div>
+        </div>
+        <h2>Changes from image 4</h2>
+        <div class="diff">
+          <div class="chip chg"><b>steps</b><span class="old">32</span><span class="arrow">→</span><span>40</span></div>
+          <div class="chip chg"><b>hires.denoise</b><span class="old">0.4</span><span class="arrow">→</span><span>0.5</span></div>
+          <div class="chip add"><b>negative</b><span>"blurry, watermark"</span></div>
+        </div>
+        <h2>Comment <span class="modified" style="color:var(--muted)">· saved</span></h2>
+        <textarea class="comment">Hires denoise 0.5 sharpens the reflections, but the bus looks slightly washed out. Next try: denoise 0.45, steps 36.</textarea>
+        <details class="all" style="margin-top:16px"><summary><h2 style="display:inline">All settings ▸</h2></summary>
+          <table>
+            <tr><td>model</td><td>flux-lora</td></tr>
+            <tr><td>preset</td><td>realistic</td></tr>
+            <tr><td>width × height</td><td>1024 × 1024</td></tr>
+            <tr class="changed"><td>steps</td><td>40</td></tr>
+            <tr><td>guidance</td><td>1.8</td></tr>
+            <tr><td>sampler / scheduler</td><td>dpmpp_2m / beta</td></tr>
+            <tr class="changed"><td>hires.denoise</td><td>0.5</td></tr>
+            <tr><td>lora_strength / lora2</td><td>0.2 / 1.35</td></tr>
+          </table>
+        </details>
+      </section>
+
+      <!-- Column 3: parameters, all groups collapsed by default (sampling open here for illustration) -->
+      <section class="card">
+        <div class="colhead"><h3>Parameter</h3><button class="ghost" title="Reset to defaults">↺ Defaults</button></div>
+        <details class="group"><summary><span class="t">Model & size</span><span class="sum">flux-lora · realistic · 1024²</span></summary>
+          <div class="fields">
+            <label class="f"><span>Model</span><select><option>flux-lora</option></select></label>
+            <label class="f"><span>Preset</span><select><option>realistic</option></select></label>
+            <label class="f"><span>Width</span><input type="number" value="1024"></label>
+            <label class="f"><span>Height</span><input type="number" value="1024"></label>
+          </div></details>
+        <details class="group" open><summary><span class="t">Sampling</span><span class="sum">40 steps · g 1.8 · Seed random</span></summary>
+          <div class="fields">
+            <label class="f"><span>Steps</span><input type="number" value="40"></label>
+            <label class="f"><span>Guidance</span><input type="number" value="1.8"></label>
+            <label class="f wide"><span>Seed</span><input type="number" placeholder="random"></label>
+            <label class="f"><span>Sampler</span><select><option>dpmpp_2m</option></select></label>
+            <label class="f"><span>Scheduler</span><select><option>beta</option></select></label>
+          </div></details>
+        <details class="group"><summary><span class="t">Hires & Fixes</span><span class="sum">Hires 1.5× · Face · Hand</span></summary>
+          <div class="toggle"><span class="sw"></span> Hires</div>
+          <div class="sub fields"><label class="f"><span>Scale</span><input type="number" value="1.5"></label><label class="f"><span>Denoise</span><input type="number" value="0.5"></label><label class="f"><span>Steps</span><input type="number" value="25"></label></div>
+          <div class="toggle" style="margin-top:8px"><span class="sw"></span> Face Fix</div>
+          <div class="sub fields"><label class="f"><span>Steps</span><input type="number" value="25"></label><label class="f"><span>Denoise</span><input type="number" value="0.4"></label></div>
+          <div class="toggle" style="margin-top:8px"><span class="sw"></span> Hand Fix</div>
+        </details>
+        <details class="group"><summary><span class="t">LoRA</span><span class="sum">LoRA 1 0.2 · LoRA 2 1.35</span></summary>
+          <div class="fields"><label class="f wide"><span>LoRA 1 (0–2)</span><input type="number" value="0.2" step="0.05"></label></div>
+          <div class="toggle" style="margin-top:10px"><span class="sw"></span> LoRA 2 (lora2)</div>
+          <div class="sub fields"><label class="f"><span>Strength 0–2</span><input type="number" value="1.35" step="0.05"></label></div>
+          <div class="hint" style="margin-top:6px">only with model “flux-lora”</div>
+        </details>
+      </section>
+
+      <!-- Column 4: prompt only, full height, render button below -->
+      <section class="card promptcol">
+        <h2 style="margin:0">Prompt <span class="modified">· modified</span></h2>
+        <textarea>A green car on the road in London, golden hour, wet asphalt reflecting the street lights, red double-decker bus in the background, shallow depth of field, 35mm photo</textarea>
+        <h2 style="margin:4px 0 0">Negative Prompt</h2>
+        <textarea class="negp" placeholder="empty = off (otherwise real CFG, ~1.5× time)">blurry, watermark</textarea>
+        <div class="renderbar"><button class="primary">▶ Render · image 13</button></div>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>

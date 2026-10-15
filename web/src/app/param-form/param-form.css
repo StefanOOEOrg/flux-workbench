@@ -1,0 +1,147 @@
+:host {
+  display: block;
+}
+
+.colhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.group {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+.colhead + .group {
+  border-top: none;
+  padding-top: 0;
+}
+
+.group summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.group summary::-webkit-details-marker {
+  display: none;
+}
+
+.group summary .t {
+  flex: 1;
+}
+
+.group summary .sum {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.group[open] summary {
+  margin-bottom: 10px;
+}
+
+.group summary::after {
+  content: '▸';
+  color: var(--muted);
+  margin-left: 8px;
+}
+
+.group[open] summary::after {
+  content: '▾';
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.f {
+  display: grid;
+  gap: 4px;
+}
+
+.f span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.f input[type='number'] {
+  width: 84px;
+}
+
+.f.wide input {
+  width: 120px;
+}
+
+.f select {
+  min-width: 120px;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.toggle.gap {
+  margin-top: 8px;
+}
+
+/* Checkbox styled as switch */
+.sw {
+  position: relative;
+  display: inline-block;
+  width: 30px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.sw input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.sw::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.sw:has(input:checked)::before {
+  background: var(--accent);
+}
+
+.sw::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s;
+}
+
+.sw:has(input:checked)::after {
+  transform: translateX(13px);
+}
+
+.sub {
+  margin: 8px 0 4px 38px;
+}

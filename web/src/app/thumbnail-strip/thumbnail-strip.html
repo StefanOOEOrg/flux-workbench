@@ -1,0 +1,29 @@
+@if (store.selectedProject() === null) {
+  <p class="hint">Select a project</p>
+} @else {
+  <div class="strip">
+    @for (n of store.images(); track n) {
+      <figure
+        data-testid="thumb"
+        class="thumb"
+        tabindex="0"
+        [class.selected]="n === store.selectedImage()"
+        title="Double-click opens the image"
+        (click)="store.selectImage(n)"
+        (keydown.enter)="store.selectImage(n)"
+        (dblclick)="store.openImage(n)"
+      >
+        <img [src]="store.imageUrl(n)" loading="lazy" [alt]="'Image ' + n" />
+        <figcaption class="n">{{ n }}</figcaption>
+      </figure>
+    }
+    @for (job of store.projectPendingJobs(); track job.id) {
+      <div data-testid="pending" class="thumb pending">
+        {{ $index === 0 && job.status === 'running' ? 'running …' : 'queued …' }}
+      </div>
+    }
+  </div>
+  @if (store.images().length === 0 && store.projectPendingJobs().length === 0) {
+    <p class="hint">No images yet – enter a prompt and render</p>
+  }
+}

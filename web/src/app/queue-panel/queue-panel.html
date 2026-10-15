@@ -1,0 +1,32 @@
+<h2>Queue</h2>
+
+@if (visibleJobs().length === 0) {
+  <p class="hint">Queue empty</p>
+} @else {
+  <div class="jobs">
+    @for (job of visibleJobs(); track job.id) {
+      <div data-testid="job" [class]="'job ' + job.status">
+        <div class="row">
+          <span>{{ title(job) }}</span>
+          <span class="badge">{{ statusLabel(job) }}</span>
+        </div>
+        @if (typeof job.request['prompt'] === 'string') {
+          <div class="p">{{ job.request['prompt'].slice(0, 60) }}</div>
+        }
+        @if (job.status === 'error') {
+          <div class="err">{{ job.error }}</div>
+        }
+        @if (job.status === 'queued') {
+          <button
+            type="button"
+            data-testid="cancel"
+            class="ghost"
+            (click)="store.cancelJob(job.id)"
+          >
+            Entfernen
+          </button>
+        }
+      </div>
+    }
+  </div>
+}

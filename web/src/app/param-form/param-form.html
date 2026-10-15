@@ -1,0 +1,272 @@
+<div class="colhead">
+  <h3>Parameter</h3>
+  <button type="button" data-testid="reset" class="ghost" (click)="resetToDefaults()">
+    ↺ Defaults
+  </button>
+</div>
+
+<details data-testid="group-model" class="group">
+  <summary>
+    <span class="t">Model &amp; size</span>
+    <span class="sum" data-testid="sum-model">{{ groupSummary('model') }}</span>
+  </summary>
+  <div class="fields">
+    <label class="f">
+      <span>Model</span>
+      <select data-testid="f-model" (change)="setText('model', $any($event.target).value)">
+        <option value="" [selected]="store.form().model === undefined">– Default –</option>
+        @for (m of models; track m) {
+          <option [value]="m" [selected]="m === store.form().model">{{ m }}</option>
+        }
+        @if (extraOption(store.form().model, models)) {
+          <option [value]="store.form().model ?? ''" [selected]="true">
+            {{ store.form().model }}
+          </option>
+        }
+      </select>
+    </label>
+    <label class="f">
+      <span>Preset</span>
+      <select data-testid="f-preset" (change)="setText('preset', $any($event.target).value)">
+        <option value="" [selected]="store.form().preset === undefined">– Default –</option>
+        @for (p of presets; track p) {
+          <option [value]="p" [selected]="p === store.form().preset">{{ p }}</option>
+        }
+        @if (extraOption(store.form().preset, presets)) {
+          <option [value]="store.form().preset ?? ''" [selected]="true">
+            {{ store.form().preset }}
+          </option>
+        }
+      </select>
+    </label>
+    <label class="f">
+      <span>Width</span>
+      <input
+        type="number"
+        data-testid="f-width"
+        [value]="store.form().width ?? ''"
+        (input)="setNumber('width', $any($event.target).value)"
+      />
+    </label>
+    <label class="f">
+      <span>Height</span>
+      <input
+        type="number"
+        data-testid="f-height"
+        [value]="store.form().height ?? ''"
+        (input)="setNumber('height', $any($event.target).value)"
+      />
+    </label>
+  </div>
+</details>
+
+<details data-testid="group-sampling" class="group">
+  <summary>
+    <span class="t">Sampling</span>
+    <span class="sum" data-testid="sum-sampling">{{ groupSummary('sampling') }}</span>
+  </summary>
+  <div class="fields">
+    <label class="f">
+      <span>Steps</span>
+      <input
+        type="number"
+        data-testid="f-steps"
+        [value]="store.form().steps ?? ''"
+        (input)="setNumber('steps', $any($event.target).value)"
+      />
+    </label>
+    <label class="f">
+      <span>Guidance</span>
+      <input
+        type="number"
+        step="0.1"
+        data-testid="f-guidance"
+        [value]="store.form().guidance ?? ''"
+        (input)="setNumber('guidance', $any($event.target).value)"
+      />
+    </label>
+    <label class="f wide">
+      <span>Seed</span>
+      <input
+        type="number"
+        placeholder="random"
+        data-testid="f-seed"
+        [value]="store.form().seed ?? ''"
+        (input)="setNumber('seed', $any($event.target).value)"
+      />
+    </label>
+    <label class="f">
+      <span>Sampler</span>
+      <select data-testid="f-sampler" (change)="setText('sampler', $any($event.target).value)">
+        <option value="" [selected]="store.form().sampler === undefined">– Default –</option>
+        @for (s of samplers; track s) {
+          <option [value]="s" [selected]="s === store.form().sampler">{{ s }}</option>
+        }
+        @if (extraOption(store.form().sampler, samplers)) {
+          <option [value]="store.form().sampler ?? ''" [selected]="true">
+            {{ store.form().sampler }}
+          </option>
+        }
+      </select>
+    </label>
+    <label class="f">
+      <span>Scheduler</span>
+      <select data-testid="f-scheduler" (change)="setText('scheduler', $any($event.target).value)">
+        <option value="" [selected]="store.form().scheduler === undefined">– Default –</option>
+        @for (s of schedulers; track s) {
+          <option [value]="s" [selected]="s === store.form().scheduler">{{ s }}</option>
+        }
+        @if (extraOption(store.form().scheduler, schedulers)) {
+          <option [value]="store.form().scheduler ?? ''" [selected]="true">
+            {{ store.form().scheduler }}
+          </option>
+        }
+      </select>
+    </label>
+  </div>
+</details>
+
+<details data-testid="group-fixes" class="group">
+  <summary>
+    <span class="t">Hires &amp; Fixes</span>
+    <span class="sum" data-testid="sum-fixes">{{ groupSummary('fixes') }}</span>
+  </summary>
+  <div class="toggle">
+    <label class="sw">
+      <input
+        type="checkbox"
+        data-testid="f-hires"
+        [checked]="isOn(store.form().hires)"
+        (change)="setHiresEnabled($any($event.target).checked)"
+      />
+    </label>
+    Hires
+  </div>
+  @if (isObject(store.form().hires)) {
+    <div class="sub fields">
+      <label class="f">
+        <span>Scale</span>
+        <input
+          type="number"
+          step="0.1"
+          data-testid="f-hires-scale"
+          [value]="nestedValue('hires', 'scale') ?? ''"
+          (input)="setHires('scale', $any($event.target).value)"
+        />
+      </label>
+      <label class="f">
+        <span>Denoise</span>
+        <input
+          type="number"
+          step="0.1"
+          data-testid="f-hires-denoise"
+          [value]="nestedValue('hires', 'denoise') ?? ''"
+          (input)="setHires('denoise', $any($event.target).value)"
+        />
+      </label>
+      <label class="f">
+        <span>Steps</span>
+        <input
+          type="number"
+          data-testid="f-hires-steps"
+          [value]="nestedValue('hires', 'steps') ?? ''"
+          (input)="setHires('steps', $any($event.target).value)"
+        />
+      </label>
+    </div>
+  }
+  <div class="toggle gap">
+    <label class="sw">
+      <input
+        type="checkbox"
+        data-testid="f-face_fix"
+        [checked]="isOn(store.form().face_fix)"
+        (change)="setFaceFixEnabled($any($event.target).checked)"
+      />
+    </label>
+    Face Fix
+  </div>
+  @if (isObject(store.form().face_fix)) {
+    <div class="sub fields">
+      <label class="f">
+        <span>Steps</span>
+        <input
+          type="number"
+          data-testid="f-face_fix-steps"
+          [value]="nestedValue('face_fix', 'steps') ?? ''"
+          (input)="setFaceFix('steps', $any($event.target).value)"
+        />
+      </label>
+      <label class="f">
+        <span>Denoise</span>
+        <input
+          type="number"
+          step="0.1"
+          data-testid="f-face_fix-denoise"
+          [value]="nestedValue('face_fix', 'denoise') ?? ''"
+          (input)="setFaceFix('denoise', $any($event.target).value)"
+        />
+      </label>
+    </div>
+  }
+  <div class="toggle gap">
+    <label class="sw">
+      <input
+        type="checkbox"
+        data-testid="f-hand_fix"
+        [checked]="store.form().hand_fix === true"
+        (change)="setHandFix($any($event.target).checked)"
+      />
+    </label>
+    Hand Fix
+  </div>
+</details>
+
+<details data-testid="group-lora" class="group">
+  <summary>
+    <span class="t">LoRA</span>
+    <span class="sum" data-testid="sum-lora">{{ groupSummary('lora') }}</span>
+  </summary>
+  <div class="fields">
+    <label class="f wide">
+      <span>LoRA 1 (0–2)</span>
+      <input
+        type="number"
+        min="0"
+        max="2"
+        step="0.05"
+        data-testid="f-lora_strength"
+        [value]="store.form().lora_strength ?? ''"
+        (input)="setNumber('lora_strength', $any($event.target).value)"
+      />
+    </label>
+  </div>
+  <div class="toggle gap">
+    <label class="sw">
+      <input
+        type="checkbox"
+        data-testid="f-lora2-on"
+        [checked]="isOn(store.form().lora2)"
+        (change)="setLora2Enabled($any($event.target).checked)"
+      />
+    </label>
+    LoRA 2 (lora2)
+  </div>
+  @if (typeof store.form().lora2 === 'number') {
+    <div class="sub fields">
+      <label class="f">
+        <span>Strength 0–2</span>
+        <input
+          type="number"
+          min="0"
+          max="2"
+          step="0.05"
+          data-testid="f-lora2"
+          [value]="store.form().lora2 ?? ''"
+          (input)="setLora2($any($event.target).value)"
+        />
+      </label>
+    </div>
+  }
+  <div class="hint">only with model “flux-lora”</div>
+</details>
