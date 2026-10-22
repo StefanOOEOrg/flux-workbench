@@ -45,19 +45,27 @@ export type ParamGroup = 'model' | 'sampling' | 'fixes' | 'lora';
  *   `setHiresEnabled(checked)`; sub-fields `f-hires-scale`, `f-hires-denoise`, `f-hires-steps`
  *   rendered ONLY if `isObject(form.hires)`. Same for `f-face_fix` with `f-face_fix-steps`,
  *   `f-face_fix-denoise`. Switch `f-hand_fix` -> `setHandFix(checked)`.
- * - lora: rendered from `store.loras()` (#34), one control per config entry, in config order.
- *   The group is always rendered: with an EMPTY list it shows the hint
- *   `<p class="hint" data-testid="no-loras">No LoRAs configured</p>` instead of fields
- *   (a fresh clone has no `loras.json`). Per entry `lora`:
- *   - `lora.toggle === false`: one number input `[attr.data-testid]="'f-' + lora.key"` (0–2, step
- *     0.05, label `{{ lora.label }} (0–2)`) -> `setLoraStrength(lora.key, value)`.
- *   - `lora.toggle === true`: switch `[attr.data-testid]="'f-' + lora.key + '-on'"`
- *     (checked = `isOn(store.form()[lora.key])`) -> `setLoraEnabled(lora, checked)` and, only when
- *     `typeof store.form()[lora.key] === 'number'`, a number input
- *     `[attr.data-testid]="'f-' + lora.key"` (0–2, step 0.05, label "Strength 0–2") ->
- *     `setLoraStrength(lora.key, value)`.
- *   Hint "only with model “flux-lora”". The old fixed fields `f-lora_strength` / `f-lora2` /
- *   `f-lora2-on` disappear.
+ * - lora: rendered from `store.loras()` (#34), one ROW per config entry inside a
+ *   `<table class="lora">` (#41 — the rows must not reflow when a slot is switched off).
+ *   With an EMPTY list the group shows the hint
+ *   `<p class="hint" data-testid="no-loras">No LoRAs configured</p>` instead of the table
+ *   (a fresh clone has no `loras.json`). The `@for (lora of store.loras(); track lora.key)`
+ *   renders `<tr [attr.data-testid]="'lora-row-' + lora.key">` with exactly two `<td>`:
+ *   1. `<td class="name">`: only when `lora.toggle` a switch
+ *      `[attr.data-testid]="'f-' + lora.key + '-on'"` (checked = `isOn(store.form()[lora.key])`,
+ *      change -> `setLoraEnabled(lora, checked)`), then `{{ lora.label }}`.
+ *   2. `<td class="val">`: the ALWAYS rendered number input
+ *      `[attr.data-testid]="'f-' + lora.key"` (0–2, step 0.05,
+ *      `[value]="store.form()[lora.key] ?? ''"`, input -> `setLoraStrength(lora.key, value)`,
+ *      `[disabled]="lora.toggle && !isOn(store.form()[lora.key])"`).
+ *   Nothing in a row is rendered conditionally, so a row never disappears or moves.
+ *   Hint "only with model “flux-lora”" below the table. The old fixed fields
+ *   `f-lora_strength` / `f-lora2` / `f-lora2-on` disappear.
+ *   CSS: `.lora { width: 100%; border-collapse: collapse; }`,
+ *   `.lora td { padding: 3px 0; vertical-align: middle; }`, `.lora .name { white-space: nowrap;
+ *   display: flex; align-items: center; gap: 8px; }`, `.lora .val { text-align: right; }`,
+ *   `.lora input[type='number'] { width: 84px; }`, `.lora input:disabled { opacity: 0.45; }`.
+ *   The `.toggle` inline-flex rule stays untouched — "Hires & Fixes" still uses it.
  * - Number inputs: `<input type="number">`, `[value]="store.form().key ?? ''"`, `(input)` ->
  *   setter. Selects: do NOT bind `[value]` on `<select>` (applied before the `@for` options
  *   exist); bind `[selected]="v === store.form().key"` on each option, empty option

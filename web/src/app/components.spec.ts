@@ -593,7 +593,47 @@ describe('ParamForm', () => {
     styleOn.click();
     fixture.detectChanges();
     expect(store.form()['lora_style']).toBe(false);
-    expect(one('f-lora_style')).toBeUndefined();
+    // #41: the strength field stays in place, it is only disabled
+    const off = one('f-lora_style') as HTMLInputElement;
+    expect(off).toBeTruthy();
+    expect(off.disabled).toBe(true);
+    expect(off.value).toBe('');
+  });
+
+  it('renders one stable table row per LoRA slot (#41)', () => {
+    const { store, fixture, one } = render(ParamForm);
+    store.loras.set(LORAS);
+    store.form.set(store.defaultForm());
+    fixture.detectChanges();
+
+    const plain = one('lora-row-lora_strength');
+    const toggled = one('lora-row-lora2');
+    expect(plain).toBeTruthy();
+    expect(toggled).toBeTruthy();
+    expect(plain.querySelectorAll('input[type="number"]')).toHaveLength(1);
+    expect(toggled.querySelectorAll('input[type="number"]')).toHaveLength(1);
+    expect(plain.querySelector('[data-testid="f-lora2"]')).toBeNull();
+    expect(plain.querySelector('[data-testid="f-lora2-on"]')).toBeNull();
+    expect(toggled.querySelector('[data-testid="f-lora2-on"]')).toBeTruthy();
+
+    const on = one('f-lora2-on') as HTMLInputElement;
+    const value = one('f-lora2') as HTMLInputElement;
+    expect(on.checked).toBe(true);
+    expect(value.disabled).toBe(false);
+    expect(value.value).toBe('1.35');
+
+    on.click();
+    fixture.detectChanges();
+    expect(store.form()['lora2']).toBe(false);
+    expect(one('lora-row-lora2')).toBeTruthy();
+    expect((one('f-lora2') as HTMLInputElement).disabled).toBe(true);
+
+    (one('f-lora2-on') as HTMLInputElement).click();
+    fixture.detectChanges();
+    expect(store.form()['lora2']).toBe(1.35);
+    const backOn = one('f-lora2') as HTMLInputElement;
+    expect(backOn.disabled).toBe(false);
+    expect(backOn.value).toBe('1.35');
   });
 
   it('shows sub-fields only when the switch is on', () => {
@@ -607,7 +647,8 @@ describe('ParamForm', () => {
     store.form.update((f) => ({ ...f, hires: false, lora2: false }));
     fixture.detectChanges();
     expect(one('f-hires-scale')).toBeUndefined();
-    expect(one('f-lora2')).toBeUndefined();
+    // #41: LoRA strength fields no longer disappear, they are disabled
+    expect((one('f-lora2') as HTMLInputElement).disabled).toBe(true);
     expect((one('f-hires') as HTMLInputElement).checked).toBe(false);
     expect((one('f-lora2-on') as HTMLInputElement).checked).toBe(false);
 
