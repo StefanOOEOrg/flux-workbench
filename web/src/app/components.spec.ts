@@ -584,7 +584,9 @@ describe('ParamForm', () => {
     expect(one('no-loras')).toBeUndefined();
     const detail = one('f-lora_detail') as HTMLInputElement;
     expect(detail.value).toBe('0.5');
-    expect(detail.closest('label')!.textContent).toContain('Detail');
+    // #41: name and field live in sibling cells of one row, so assert on the row
+    expect(detail.closest('tr')!.textContent).toContain('Detail');
+    expect(detail.getAttribute('aria-label')).toBe('Detail');
 
     const styleOn = one('f-lora_style-on') as HTMLInputElement;
     expect(styleOn.checked).toBe(true);
