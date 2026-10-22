@@ -88,3 +88,17 @@ def test_load_loras_falls_back_to_the_defaults_with_a_warning(tmp_path, content)
     assert config.warning is not None
     assert "loras.json" in config.warning
     assert config.warning.endswith("using defaults")
+
+
+def test_load_loras_treats_a_non_utf8_file_as_broken(tmp_path) -> None:
+    path = tmp_path / "loras.json"
+    # Latin-1: "Größe" - a hand-edited file with the wrong encoding must not raise (docstring
+    # promises "never raises", issue #34 requirement 4).
+    path.write_bytes(b'{"loras": [{"key": "a", "label": "Gr\xf6\xdfe", "default": 1.0}]}')
+
+    config = load_loras(path)
+
+    assert config.loras == DEFAULT_LORAS
+    assert config.warning is not None
+    assert "loras.json" in config.warning
+    assert config.warning.endswith("using defaults")
