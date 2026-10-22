@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { ImageSettings, Job, ProjectInfo, RenderRequest } from './models';
+import { ImageSettings, Job, ProjectInfo, RenderRequest, WorkbenchConfig } from './models';
 
 /**
  * Thin wrapper around the server's REST API (all URLs relative, under `/api`).
@@ -13,6 +13,11 @@ import { ImageSettings, Job, ProjectInfo, RenderRequest } from './models';
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly http = inject(HttpClient);
+
+  /** `GET /api/config` -> LoRA slots (`loras`) and an optional `warning` (#34). */
+  getConfig(): Observable<WorkbenchConfig> {
+    throw new Error('not implemented');
+  }
 
   /** `GET /api/projects` -> `[{id, image_count}]`, newest first. */
   listProjects(): Observable<ProjectInfo[]> {
