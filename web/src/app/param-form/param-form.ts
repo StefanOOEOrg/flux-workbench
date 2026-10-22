@@ -190,9 +190,19 @@ export class ParamForm {
    * (`NaN` -> ignore, no change).
    */
   setLoraStrength(key: string, raw: string): void {
-    void key;
-    void raw;
-    throw new Error('not implemented');
+    if (raw === '') {
+      this.store.form.update((f) => {
+        const next: RenderRequest = { ...f };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+    const value = Number(raw);
+    if (Number.isNaN(value)) {
+      return;
+    }
+    this.store.form.update((f) => ({ ...f, [key]: value }));
   }
 
   /**
@@ -200,9 +210,13 @@ export class ParamForm {
    * `true` -> keep the current number if the value already is one, otherwise `lora.default`.
    */
   setLoraEnabled(lora: LoraEntry, enabled: boolean): void {
-    void lora;
-    void enabled;
-    throw new Error('not implemented');
+    this.store.form.update((f) => {
+      if (!enabled) {
+        return { ...f, [lora.key]: false };
+      }
+      const value = typeof f[lora.key] === 'number' ? f[lora.key] : lora.default;
+      return { ...f, [lora.key]: value };
+    });
   }
 
   /**
