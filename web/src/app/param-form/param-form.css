@@ -146,15 +146,17 @@
   margin: 8px 0 4px 38px;
 }
 
-/* LoRA group (#41): one stable row per slot, so nothing reflows on toggle */
+/* LoRA group (#41/#43): one stable row per slot, so nothing reflows on toggle */
 .lora {
-  width: 100%;
-  border-collapse: collapse;
+  display: grid;
+  gap: 8px;
 }
 
-.lora td {
-  padding: 3px 0;
-  vertical-align: middle;
+.lora-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
 }
 
 .lora .name {

@@ -1,10 +1,11 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 
 import { summary } from '../format';
 import {
   FaceFixOptions,
   HiresOptions,
   LoraEntry,
+  LoraView,
   MODELS,
   PRESETS,
   RenderRequest,
@@ -45,26 +46,26 @@ export type ParamGroup = 'model' | 'sampling' | 'fixes' | 'lora';
  *   `setHiresEnabled(checked)`; sub-fields `f-hires-scale`, `f-hires-denoise`, `f-hires-steps`
  *   rendered ONLY if `isObject(form.hires)`. Same for `f-face_fix` with `f-face_fix-steps`,
  *   `f-face_fix-denoise`. Switch `f-hand_fix` -> `setHandFix(checked)`.
- * - lora: rendered from `store.loras()` (#34), one ROW per config entry inside a
- *   `<table class="lora">` (#41 — the rows must not reflow when a slot is switched off).
+ * - lora: rendered from `loraViews()` (#43), one `.lora-row` per slot inside `<div class="lora">`.
+ *   Each view already carries `value`, `on`, `disabled`, `testId` and `switchTestId`, so the
+ *   template neither indexes into `store.form()` nor builds test ids itself.
  *   With an EMPTY list the group shows the hint
- *   `<p class="hint" data-testid="no-loras">No LoRAs configured</p>` instead of the table
- *   (a fresh clone has no `loras.json`). The `@for (lora of store.loras(); track lora.key)`
- *   renders `<tr [attr.data-testid]="'lora-row-' + lora.key">` with exactly two `<td>`:
- *   1. `<td class="name">`: only when `lora.toggle` a switch
- *      `[attr.data-testid]="'f-' + lora.key + '-on'"` (checked = `isOn(store.form()[lora.key])`,
- *      change -> `setLoraEnabled(lora, checked)`), then `{{ lora.label }}`.
- *   2. `<td class="val">`: the ALWAYS rendered number input
- *      `[attr.data-testid]="'f-' + lora.key"` (0–2, step 0.05,
- *      `[value]="store.form()[lora.key] ?? ''"`, input -> `setLoraStrength(lora.key, value)`,
- *      `[disabled]="lora.toggle && !isOn(store.form()[lora.key])"`).
+ *   `<p class="hint" data-testid="no-loras">No LoRAs configured</p>` instead of the grid
+ *   (a fresh clone has no `loras.json`).
+ *   Per row: `<div class="lora-row" [attr.data-testid]="'lora-row-' + view.key">` with two cells:
+ *   1. `<span class="name">`: only when `view.toggle` a switch
+ *      `[attr.data-testid]="view.switchTestId"` (checked = `view.on`,
+ *      change -> `setLoraEnabled(view, checked)`), then `{{ view.label }}`.
+ *   2. `<span class="val">`: the ALWAYS rendered number input `[attr.data-testid]="view.testId"`
+ *      (0–2, step 0.05, `[value]="view.value ?? ''"`, `[attr.aria-label]="view.label"`,
+ *      `[disabled]="view.disabled"`, input -> `setLoraStrength(view.key, value)`).
  *   Nothing in a row is rendered conditionally, so a row never disappears or moves.
- *   Hint "only with model “flux-lora”" below the table. The old fixed fields
- *   `f-lora_strength` / `f-lora2` / `f-lora2-on` disappear.
- *   CSS: `.lora { width: 100%; border-collapse: collapse; }`,
- *   `.lora td { padding: 3px 0; vertical-align: middle; }`, `.lora .name { white-space: nowrap;
- *   display: flex; align-items: center; gap: 8px; }`, `.lora .val { text-align: right; }`,
- *   `.lora input[type='number'] { width: 84px; }`, `.lora input:disabled { opacity: 0.45; }`.
+ *   Hint "only with model “flux-lora”" below the grid.
+ *   CSS: `.lora { display: grid; gap: 8px; }`, `.lora-row { display: grid;
+ *   grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }`,
+ *   `.lora .name { display: flex; align-items: center; gap: 8px; white-space: nowrap; }`,
+ *   `.lora .val { text-align: right; }`, `.lora input[type='number'] { width: 84px; }`,
+ *   `.lora input:disabled { opacity: 0.45; }`.
  *   The `.toggle` inline-flex rule stays untouched — "Hires & Fixes" still uses it.
  * - Number inputs: `<input type="number">`, `[value]="store.form().key ?? ''"`, `(input)` ->
  *   setter. Selects: do NOT bind `[value]` on `<select>` (applied before the `@for` options
@@ -246,6 +247,31 @@ export class ParamForm {
     }
     return list.includes(value) ? null : value;
   }
+
+  /**
+   * One entry per configured LoRA slot (#43), derived from `store.loras()` and `store.form()`:
+   * `{ ...lora, value, on, disabled, testId, switchTestId }` with
+   * - `value = store.form()[lora.key]`
+   * - `on = isOn(value)`
+   * - `disabled = lora.toggle && !on`
+   * - `testId = `f-${key}``, `switchTestId = `f-${key}-on``
+   * Recomputed whenever either signal changes. `[]` without configured slots.
+   */
+  readonly loraViews = computed<LoraView[]>(() => {
+    const form = this.store.form();
+    return this.store.loras().map((lora) => {
+      const value = form[lora.key];
+      const on = this.isOn(value);
+      return {
+        ...lora,
+        value,
+        on,
+        disabled: lora.toggle && !on,
+        testId: `f-${lora.key}`,
+        switchTestId: `f-${lora.key}-on`,
+      };
+    });
+  });
 
   /**
    * Text for the collapsed group header (use `summary()` from `../format`), from `store.form()`.

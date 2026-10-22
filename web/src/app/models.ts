@@ -57,6 +57,23 @@ export interface WorkbenchConfig {
   warning: string | null;
 }
 
+/**
+ * One LoRA slot prepared for the template (#43): the config entry plus everything the row needs,
+ * so the template does not index into `store.form()` or build test ids itself.
+ */
+export interface LoraView extends LoraEntry {
+  /** Current form value for this slot (`store.form()[key]`): a number, `false` or undefined. */
+  value: unknown;
+  /** `true` when the slot is switched on (`isOn(value)`). */
+  on: boolean;
+  /** `true` when the strength field is not editable: `toggle && !on`. */
+  disabled: boolean;
+  /** `data-testid` of the strength field, e.g. `f-lora2`. */
+  testId: string;
+  /** `data-testid` of the on/off switch, e.g. `f-lora2-on`. */
+  switchTestId: string;
+}
+
 /** Content of `<n>.json` as returned by `GET .../images/{n}/settings`. */
 export interface ImageSettings {
   request: Record<string, unknown>;
