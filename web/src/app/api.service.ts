@@ -84,7 +84,7 @@ export class ApiService {
    * `cancelled`) from the queue history, `queued`/`running` stay (#30).
    */
   clearQueue(): Observable<void> {
-    throw new Error('not implemented');
+    return this.http.delete<void>('/api/queue');
   }
 
   /** `POST /api/queue` with body `{project_id, request}` -> the created job. */

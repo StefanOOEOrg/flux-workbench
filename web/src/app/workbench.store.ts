@@ -508,7 +508,13 @@ export class WorkbenchStore {
    * - Selection, settings, form and the project list are not touched.
    */
   async clearQueue(): Promise<void> {
-    throw new Error('not implemented');
+    try {
+      await firstValueFrom(this.api.clearQueue());
+      this.error.set(null);
+      await this.refreshJobs();
+    } catch (err) {
+      this.error.set(errorMessage(err));
+    }
   }
 
   /**
