@@ -230,7 +230,19 @@ export class WorkbenchStore {
    *   touched.
    */
   async loadConfig(): Promise<void> {
-    throw new Error('not implemented');
+    let config;
+    try {
+      config = await firstValueFrom(this.api.getConfig());
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return;
+    }
+    this.loras.set(config.loras);
+    this.error.set(typeof config.warning === 'string' ? config.warning : null);
+    if (this.selectedImage() === null) {
+      this.form.set(this.defaultForm());
+      this.formBaseline.set(this.defaultForm());
+    }
   }
 
   /** `projects.set(await listProjects())`. */
