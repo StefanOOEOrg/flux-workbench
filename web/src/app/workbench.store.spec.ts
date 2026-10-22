@@ -531,6 +531,26 @@ describe('WorkbenchStore', () => {
       expect(store.diff()).toEqual([{ path: 'steps', kind: 'changed', before: 2, after: 3 }]);
     });
 
+    it('recomputes the predecessor when a non-selected predecessor is deleted', async () => {
+      const ctx = setup();
+      ctx.api.images[PID] = [1, 3, 5];
+      ctx.api.settings[`${PID}/1`] = s({ prompt: 'one', steps: 1 }, null);
+      ctx.api.settings[`${PID}/3`] = s({ prompt: 'three', steps: 3 }, null);
+      ctx.api.settings[`${PID}/5`] = s({ prompt: 'five', steps: 5 }, null);
+      await ctx.store.selectProject(PID);
+      ctx.store.form.update((f) => ({ ...f, prompt: 'edited' }));
+
+      await ctx.store.deleteImage(3);
+
+      expect(ctx.store.images()).toEqual([1, 5]);
+      expect(ctx.store.selectedImage()).toBe(5);
+      // the diff now refers to image 1, not to the deleted image 3
+      expect(ctx.store.previousSettings()?.request).toEqual({ prompt: 'one', steps: 1 });
+      expect(ctx.store.diff()).toEqual([{ path: 'steps', kind: 'changed', before: 1, after: 5 }]);
+      expect(ctx.store.form().prompt).toBe('edited');
+      expect(ctx.store.formDirty()).toBe(true);
+    });
+
     it('selects the next image and loads its request when the selected one is deleted', async () => {
       const { store } = await threeImages();
       await store.selectImage(2);
@@ -538,6 +558,24 @@ describe('WorkbenchStore', () => {
       await store.deleteImage(2);
 
       expect(store.images()).toEqual([1, 3]);
+      expect(store.selectedImage()).toBe(3);
+      expect(store.form()).toEqual({ prompt: 'three', steps: 3 });
+      expect(store.formBaseline()).toEqual({ prompt: 'three', steps: 3 });
+    });
+
+    it('loads the successor request without asking, even with unrendered changes', async () => {
+      const { store } = await threeImages();
+      await store.selectImage(2);
+      store.form.update((f) => ({ ...f, prompt: 'edited' }));
+      const asked: string[] = [];
+      store.confirmFn = (m) => {
+        asked.push(m);
+        return false;
+      };
+
+      await store.deleteImage(2);
+
+      expect(asked).toEqual([]);
       expect(store.selectedImage()).toBe(3);
       expect(store.form()).toEqual({ prompt: 'three', steps: 3 });
       expect(store.formBaseline()).toEqual({ prompt: 'three', steps: 3 });
