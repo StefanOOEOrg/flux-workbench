@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from . import config
 from .bridge import BridgeClient
+from .loras import load_loras
 from .projects import NotFound, ProjectError, ProjectExists, ProjectStore
 from .render_queue import JobNotCancellable, RenderQueue
 from .viewer import ViewerError, open_in_viewer
@@ -126,7 +127,8 @@ def create_app(
         needs a browser reload. A missing or broken file must NOT raise - it comes back as
         ``warning`` with the defaults.
         """
-        raise NotImplementedError
+        loaded = load_loras(lora_config_path or config.LORA_CONFIG_PATH)
+        return {"loras": [asdict(lora) for lora in loaded.loras], "warning": loaded.warning}
 
     @app.get("/api/queue")
     def list_jobs() -> list[dict[str, Any]]:
