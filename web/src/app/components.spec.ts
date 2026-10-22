@@ -567,11 +567,12 @@ describe('ParamForm', () => {
     expect((one('f-preset') as HTMLSelectElement).value).toBe('');
   });
 
-  it('renders one control per configured LoRA entry and hides the group without entries', () => {
+  it('renders one control per configured LoRA entry and shows a hint without entries', () => {
     const { store, fixture, all, one } = render(ParamForm);
     fixture.detectChanges();
-    expect(all('group-lora')).toHaveLength(0);
-    expect(one('f-lora2-on')).toBeUndefined();
+    expect(all('group-lora')).toHaveLength(1);
+    expect(one('no-loras').textContent).toContain('No LoRAs configured');
+    expect(all('f-lora2-on')).toHaveLength(0);
 
     store.loras.set([
       { key: 'lora_detail', label: 'Detail', default: 0.5, toggle: false },
@@ -580,7 +581,7 @@ describe('ParamForm', () => {
     store.form.set(store.defaultForm());
     fixture.detectChanges();
 
-    expect(all('group-lora')).toHaveLength(1);
+    expect(one('no-loras')).toBeUndefined();
     const detail = one('f-lora_detail') as HTMLInputElement;
     expect(detail.value).toBe('0.5');
     expect(detail.closest('label')!.textContent).toContain('Detail');

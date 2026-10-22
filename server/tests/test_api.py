@@ -159,15 +159,7 @@ def test_queue_validation(api: TestClient, store) -> None:
 
 
 def test_config_route(api: TestClient, tmp_path) -> None:
-    body = api.get("/api/config").json()
-    assert [entry["key"] for entry in body["loras"]] == ["lora_strength", "lora2"]
-    assert body["loras"][1] == {
-        "key": "lora2",
-        "label": "LoRA 2",
-        "default": 1.35,
-        "toggle": True,
-    }
-    assert "loras.json" in body["warning"]
+    assert api.get("/api/config").json() == {"loras": [], "warning": None}
 
     (tmp_path / "loras.json").write_text(
         json.dumps({"loras": [{"key": "lora3", "label": "Detail", "default": 0.4}]}),
@@ -177,6 +169,15 @@ def test_config_route(api: TestClient, tmp_path) -> None:
         "loras": [{"key": "lora3", "label": "Detail", "default": 0.4, "toggle": False}],
         "warning": None,
     }
+
+
+def test_config_route_reports_a_broken_file(api: TestClient, tmp_path) -> None:
+    (tmp_path / "loras.json").write_text("not json", encoding="utf-8")
+
+    body = api.get("/api/config").json()
+
+    assert [entry["key"] for entry in body["loras"]] == ["lora_strength", "lora2"]
+    assert "loras.json" in body["warning"]
 
 
 def test_serves_web_app(api: TestClient) -> None:

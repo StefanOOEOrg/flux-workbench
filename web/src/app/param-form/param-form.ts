@@ -46,8 +46,9 @@ export type ParamGroup = 'model' | 'sampling' | 'fixes' | 'lora';
  *   rendered ONLY if `isObject(form.hires)`. Same for `f-face_fix` with `f-face_fix-steps`,
  *   `f-face_fix-denoise`. Switch `f-hand_fix` -> `setHandFix(checked)`.
  * - lora: rendered from `store.loras()` (#34), one control per config entry, in config order.
- *   The whole group only exists while `store.loras().length > 0`; with an empty list there is no
- *   LoRA group at all. Per entry `lora`:
+ *   The group is always rendered: with an EMPTY list it shows the hint
+ *   `<p class="hint" data-testid="no-loras">No LoRAs configured</p>` instead of fields
+ *   (a fresh clone has no `loras.json`). Per entry `lora`:
  *   - `lora.toggle === false`: one number input `[attr.data-testid]="'f-' + lora.key"` (0–2, step
  *     0.05, label `{{ lora.label }} (0–2)`) -> `setLoraStrength(lora.key, value)`.
  *   - `lora.toggle === true`: switch `[attr.data-testid]="'f-' + lora.key + '-on'"`

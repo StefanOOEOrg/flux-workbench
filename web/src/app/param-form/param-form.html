@@ -222,12 +222,14 @@
   </div>
 </details>
 
-@if (store.loras().length > 0) {
-  <details data-testid="group-lora" class="group">
-    <summary>
-      <span class="t">LoRA</span>
-      <span class="sum" data-testid="sum-lora">{{ groupSummary('lora') }}</span>
-    </summary>
+<details data-testid="group-lora" class="group">
+  <summary>
+    <span class="t">LoRA</span>
+    <span class="sum" data-testid="sum-lora">{{ groupSummary('lora') }}</span>
+  </summary>
+  @if (store.loras().length === 0) {
+    <p class="hint" data-testid="no-loras">No LoRAs configured</p>
+  } @else {
     @for (lora of store.loras(); track lora.key) {
       @if (lora.toggle) {
         <div class="toggle gap">
@@ -275,5 +277,5 @@
       }
     }
     <div class="hint">only with model “flux-lora”</div>
-  </details>
-}
+  }
+</details>

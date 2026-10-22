@@ -29,7 +29,22 @@ Then open <http://127.0.0.1:8080>.
 | `FLUX_BRIDGE_URL` | `http://127.0.0.1:8002/generate` |
 | `FLUX_BRIDGE_TIMEOUT` | `900` (seconds) |
 | `FLUX_PROJECTS_DIR` | `./projects` |
+| `FLUX_LORA_CONFIG` | `./loras.json` |
 | `FLUX_PORT` | `8080` |
+
+### LoRA slots
+
+The parameter form shows one control per LoRA slot listed in `loras.json` (at most 5 entries).
+Which LoRA file a slot loads is decided by the render bridge on the GX10, so the `key` must be a
+request key the bridge knows (today `lora_strength` and `lora2`).
+
+```bash
+cp loras.example.json loras.json   # then edit labels, defaults and toggles
+```
+
+`loras.json` is **not** committed (see `.gitignore`) — every machine keeps its own. Without the
+file the form shows "No LoRAs configured"; a broken file falls back to the two built-in slots and
+shows a warning.
 
 ## Development
 
