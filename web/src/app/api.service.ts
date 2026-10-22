@@ -16,7 +16,7 @@ export class ApiService {
 
   /** `GET /api/config` -> LoRA slots (`loras`) and an optional `warning` (#34). */
   getConfig(): Observable<WorkbenchConfig> {
-    throw new Error('not implemented');
+    return this.http.get<WorkbenchConfig>('/api/config');
   }
 
   /** `GET /api/projects` -> `[{id, image_count}]`, newest first. */
