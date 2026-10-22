@@ -1,4 +1,15 @@
-<h2>Queue</h2>
+<div class="head">
+  <h2>Queue</h2>
+  <button
+    type="button"
+    data-testid="clear"
+    class="ghost"
+    [disabled]="!canClear()"
+    (click)="store.clearQueue()"
+  >
+    Clear
+  </button>
+</div>
 
 @if (visibleJobs().length === 0) {
   <p class="hint">Queue empty</p>

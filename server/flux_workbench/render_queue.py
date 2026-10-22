@@ -96,6 +96,19 @@ class RenderQueue:
             raise JobNotCancellable(job_id)
         job.status = "cancelled"
 
+    def clear_finished(self) -> None:
+        """Remove every job that is finished (#30): ``done``, ``error`` and ``cancelled``.
+
+        ``queued`` and ``running`` jobs stay in ``_jobs`` in their original order - a running
+        job keeps being listed and still flips to ``done`` when it finishes, a queued job is
+        still processed by the worker. ``asyncio.Queue`` is not touched (cancelled jobs sitting
+        there are simply skipped by ``process``).
+
+        No effect on the filesystem: images and settings of ``done`` jobs stay in the project.
+        Empty queue or only queued/running jobs -> no change, no exception.
+        """
+        self._jobs = [j for j in self._jobs if j.status not in ("done", "error", "cancelled")]
+
     async def process(self, job: Job) -> None:
         """Run one job; never raises.
 
