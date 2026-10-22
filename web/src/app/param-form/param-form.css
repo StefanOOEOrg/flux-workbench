@@ -145,3 +145,33 @@
 .sub {
   margin: 8px 0 4px 38px;
 }
+
+/* LoRA group (#41): one stable row per slot, so nothing reflows on toggle */
+.lora {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.lora td {
+  padding: 3px 0;
+  vertical-align: middle;
+}
+
+.lora .name {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lora .val {
+  text-align: right;
+}
+
+.lora input[type='number'] {
+  width: 84px;
+}
+
+.lora input:disabled {
+  opacity: 0.45;
+}
