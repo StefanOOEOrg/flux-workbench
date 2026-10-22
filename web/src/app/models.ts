@@ -14,6 +14,9 @@ export interface FaceFixOptions {
 /**
  * Payload for the render bridge. Every key except `prompt` is optional:
  * a missing key means "use the bridge/preset default". `seed: null` = bridge rolls a seed.
+ *
+ * Since #34 the keys are NOT closed: the LoRA slots come from `GET /api/config` and their
+ * request keys (`lora_strength`, `lora2`, ...) are unknown at compile time.
  */
 export interface RenderRequest {
   prompt: string;
@@ -30,8 +33,28 @@ export interface RenderRequest {
   face_fix?: boolean | FaceFixOptions;
   hand_fix?: boolean;
   negative?: string;
-  lora_strength?: number;
-  lora2?: number | boolean;
+  /** Dynamic LoRA values (#34): request key -> strength (number) or `false` (switched off). */
+  [key: string]: unknown;
+}
+
+/** One LoRA slot as served by `GET /api/config` (#34). */
+export interface LoraEntry {
+  /** Request key the bridge knows, e.g. `lora2`. */
+  key: string;
+  /** Label in the parameter form. */
+  label: string;
+  /** Default strength (0–2). */
+  default: number;
+  /** `true` = the form shows an on/off switch plus a strength field; `false` = one strength field. */
+  toggle: boolean;
+}
+
+/** Content of `GET /api/config` (#34). */
+export interface WorkbenchConfig {
+  /** LoRA slots in display order (at most 5). */
+  loras: LoraEntry[];
+  /** Set when `loras.json` was missing or broken; the slots are the built-in defaults then. */
+  warning: string | null;
 }
 
 /** Content of `<n>.json` as returned by `GET .../images/{n}/settings`. */
@@ -143,7 +166,8 @@ export const SCHEDULERS = [
   'kl_optimal',
 ] as const;
 
-/** Form defaults for an empty project (values from the bridge's render.py example, seed empty). */
+/** Form defaults for an empty project (values from the bridge's render.py example, seed empty).
+ *  LoRA values are NOT part of it any more: they come from `GET /api/config` (#34). */
 export const DEFAULT_REQUEST: RenderRequest = {
   prompt: 'A green car on the road in London',
   model: 'flux-lora',
@@ -159,6 +183,4 @@ export const DEFAULT_REQUEST: RenderRequest = {
   face_fix: { steps: 25, denoise: 0.4 },
   hand_fix: true,
   negative: '',
-  lora_strength: 0.2,
-  lora2: 1.35,
 };

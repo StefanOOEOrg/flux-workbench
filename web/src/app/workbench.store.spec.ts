@@ -3,7 +3,14 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
 
 import { ApiService } from './api.service';
-import { DEFAULT_REQUEST, ImageSettings, Job, ProjectInfo, RenderRequest } from './models';
+import {
+  DEFAULT_REQUEST,
+  ImageSettings,
+  Job,
+  ProjectInfo,
+  RenderRequest,
+  WorkbenchConfig,
+} from './models';
 import { WorkbenchStore, errorMessage } from './workbench.store';
 
 const PID = '20261007-x';
@@ -27,6 +34,22 @@ class FakeApi {
   failComment = false;
   failDelete = false;
   failClear = false;
+  failConfig = false;
+  config: WorkbenchConfig = {
+    loras: [
+      { key: 'lora_strength', label: 'LoRA 1', default: 0.2, toggle: false },
+      { key: 'lora2', label: 'LoRA 2', default: 1.35, toggle: true },
+    ],
+    warning: null,
+  };
+
+  getConfig(): Observable<WorkbenchConfig> {
+    this.calls.push('getConfig');
+    if (this.failConfig) {
+      return throwError(() => new HttpErrorResponse({ status: 500, error: { detail: 'nope' } }));
+    }
+    return of(structuredClone(this.config));
+  }
 
   listProjects(): Observable<ProjectInfo[]> {
     this.calls.push('listProjects');
@@ -667,6 +690,66 @@ describe('WorkbenchStore', () => {
 
       expect(store.error()).toBe('boom');
       expect(store.jobs().map((j) => j.id)).toEqual(['d', 'r']);
+    });
+  });
+
+  describe('loadConfig', () => {
+    it('loads the LoRA slots and applies their defaults to the empty form', async () => {
+      const { store, api } = setup();
+      expect(store.form()).toEqual(DEFAULT_REQUEST);
+
+      await store.loadConfig();
+
+      expect(api.calls).toContain('getConfig');
+      expect(store.loras().map((l) => l.key)).toEqual(['lora_strength', 'lora2']);
+      expect(store.form()).toEqual({ ...DEFAULT_REQUEST, lora_strength: 0.2, lora2: 1.35 });
+      expect(store.formBaseline()).toEqual(store.form());
+      expect(store.formBaseline()).not.toBe(store.form());
+      expect(store.error()).toBeNull();
+    });
+
+    it('shows the warning of the server as error', async () => {
+      const { store, api } = setup();
+      api.config = { loras: [], warning: 'LoRA config loras.json: broken - using defaults' };
+
+      await store.loadConfig();
+
+      expect(store.error()).toBe('LoRA config loras.json: broken - using defaults');
+      expect(store.loras()).toEqual([]);
+    });
+
+    it('does not touch a form that belongs to an image', async () => {
+      const { store, api } = setup();
+      api.images[PID] = [1];
+      api.settings[`${PID}/1`] = s({ prompt: 'stored' }, null);
+      await store.selectProject(PID);
+      const before = store.form();
+
+      await store.loadConfig();
+
+      expect(store.form()).toEqual(before);
+      expect(store.formBaseline()).toEqual(before);
+      expect(store.loras()).toHaveLength(2);
+    });
+
+    it('reports server errors and leaves the LoRA list empty', async () => {
+      const { store, api } = setup();
+      api.failConfig = true;
+
+      await store.loadConfig();
+
+      expect(store.error()).toBe('nope');
+      expect(store.loras()).toEqual([]);
+      expect(store.form()).toEqual(DEFAULT_REQUEST);
+    });
+
+    it('builds the defaults from the configured LoRAs without mutating DEFAULT_REQUEST', () => {
+      const { store } = setup();
+      store.loras.set([{ key: 'lora3', label: 'Detail', default: 0.7, toggle: false }]);
+
+      expect(store.defaultForm()).toEqual({ ...DEFAULT_REQUEST, lora3: 0.7 });
+      expect(DEFAULT_REQUEST).not.toHaveProperty('lora3');
+      expect(store.defaultForm()).not.toBe(store.defaultForm());
     });
   });
 });

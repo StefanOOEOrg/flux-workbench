@@ -8,6 +8,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: Folder that contains one sub-folder per project (YYYYMMDD-<name>).
 PROJECTS_DIR = Path(os.environ.get("FLUX_PROJECTS_DIR", REPO_ROOT / "projects")).resolve()
 
+#: LoRA slot configuration (#34); re-read on every ``GET /api/config``, so editing the file
+#: only needs a browser reload.
+LORA_CONFIG_PATH = Path(os.environ.get("FLUX_LORA_CONFIG", REPO_ROOT / "loras.json")).resolve()
+
 #: Built Angular app (``npm run build`` in web/).
 WEB_DIST_DIR = Path(
     os.environ.get("FLUX_WEB_DIST_DIR", REPO_ROOT / "web" / "dist" / "web" / "browser")

@@ -18,6 +18,11 @@ describe('ApiService', () => {
 
   afterEach(() => http.verify());
 
+  it('loads the config', () => {
+    api.getConfig().subscribe();
+    http.expectOne({ method: 'GET', url: '/api/config' }).flush({ loras: [], warning: null });
+  });
+
   it('lists, creates and deletes projects', () => {
     api.listProjects().subscribe();
     http.expectOne({ method: 'GET', url: '/api/projects' }).flush([]);

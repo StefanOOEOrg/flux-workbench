@@ -2,9 +2,9 @@ import { Component, inject } from '@angular/core';
 
 import { summary } from '../format';
 import {
-  DEFAULT_REQUEST,
   FaceFixOptions,
   HiresOptions,
+  LoraEntry,
   MODELS,
   PRESETS,
   RenderRequest,
@@ -14,7 +14,7 @@ import {
 import { WorkbenchStore } from '../workbench.store';
 
 /** Keys of `RenderRequest` with a plain number value. */
-export type NumberField = 'width' | 'height' | 'seed' | 'steps' | 'guidance' | 'lora_strength';
+export type NumberField = 'width' | 'height' | 'seed' | 'steps' | 'guidance';
 
 /** Keys of `RenderRequest` with a plain string value. */
 export type TextField = 'prompt' | 'model' | 'preset' | 'sampler' | 'scheduler' | 'negative';
@@ -45,10 +45,18 @@ export type ParamGroup = 'model' | 'sampling' | 'fixes' | 'lora';
  *   `setHiresEnabled(checked)`; sub-fields `f-hires-scale`, `f-hires-denoise`, `f-hires-steps`
  *   rendered ONLY if `isObject(form.hires)`. Same for `f-face_fix` with `f-face_fix-steps`,
  *   `f-face_fix-denoise`. Switch `f-hand_fix` -> `setHandFix(checked)`.
- * - lora: number input `f-lora_strength` (0–2, step 0.05, label "LoRA 1"); switch
- *   `f-lora2-on` (checked = `isOn(form.lora2)`) -> `setLora2Enabled(checked)` and, only when
- *   `typeof form.lora2 === 'number'`, number input `f-lora2` (0–2, step 0.05, label "LoRA 2")
- *   -> `setLora2(value)`. Hint "only with model “flux-lora”".
+ * - lora: rendered from `store.loras()` (#34), one control per config entry, in config order.
+ *   The whole group only exists while `store.loras().length > 0`; with an empty list there is no
+ *   LoRA group at all. Per entry `lora`:
+ *   - `lora.toggle === false`: one number input `[attr.data-testid]="'f-' + lora.key"` (0–2, step
+ *     0.05, label `{{ lora.label }} (0–2)`) -> `setLoraStrength(lora.key, value)`.
+ *   - `lora.toggle === true`: switch `[attr.data-testid]="'f-' + lora.key + '-on'"`
+ *     (checked = `isOn(store.form()[lora.key])`) -> `setLoraEnabled(lora, checked)` and, only when
+ *     `typeof store.form()[lora.key] === 'number'`, a number input
+ *     `[attr.data-testid]="'f-' + lora.key"` (0–2, step 0.05, label "Strength 0–2") ->
+ *     `setLoraStrength(lora.key, value)`.
+ *   Hint "only with model “flux-lora”". The old fixed fields `f-lora_strength` / `f-lora2` /
+ *   `f-lora2-on` disappear.
  * - Number inputs: `<input type="number">`, `[value]="store.form().key ?? ''"`, `(input)` ->
  *   setter. Selects: do NOT bind `[value]` on `<select>` (applied before the `@for` options
  *   exist); bind `[selected]="v === store.form().key"` on each option, empty option
@@ -177,35 +185,24 @@ export class ParamForm {
     this.store.form.update((f) => ({ ...f, hand_fix: enabled }));
   }
 
-  /** `''` -> remove `lora2`; otherwise `Number(raw)` (`NaN` -> ignore). */
-  setLora2(raw: string): void {
-    if (raw === '') {
-      this.store.form.update((f) => {
-        const next: RenderRequest = { ...f };
-        delete next.lora2;
-        return next;
-      });
-      return;
-    }
-    const value = Number(raw);
-    if (Number.isNaN(value)) {
-      return;
-    }
-    this.store.form.update((f) => ({ ...f, lora2: value }));
+  /**
+   * Strength of a LoRA slot (#34): `''` removes the key from the form, otherwise `Number(raw)`
+   * (`NaN` -> ignore, no change).
+   */
+  setLoraStrength(key: string, raw: string): void {
+    void key;
+    void raw;
+    throw new Error('not implemented');
   }
 
   /**
-   * Switch for the second LoRA: `false` -> `lora2: false`; `true` -> keep the current value if
-   * it is already a number, otherwise `lora2: 1.35` (default from the render.py example).
+   * On/off switch of a `toggle` LoRA slot (#34): `false` -> `form[lora.key] = false`;
+   * `true` -> keep the current number if the value already is one, otherwise `lora.default`.
    */
-  setLora2Enabled(enabled: boolean): void {
-    this.store.form.update((f) => {
-      if (!enabled) {
-        return { ...f, lora2: false };
-      }
-      const lora2 = typeof f.lora2 === 'number' ? f.lora2 : 1.35;
-      return { ...f, lora2 };
-    });
+  setLoraEnabled(lora: LoraEntry, enabled: boolean): void {
+    void lora;
+    void enabled;
+    throw new Error('not implemented');
   }
 
   /**
@@ -238,9 +235,9 @@ export class ParamForm {
    * - fixes:    `[isObject(hires) ? `Hires ${hires.scale ?? '?'}×` : hires === true ? 'Hires' :
    *               undefined, isOn(face_fix) ? 'Face' : undefined, hand_fix ? 'Hand' : undefined]`,
    *             empty fallback `'aus'`
-   * - lora:     `[lora_strength !== undefined ? `LoRA 1 ${lora_strength}` : undefined,
-   *               typeof lora2 === 'number' ? `LoRA 2 ${lora2}` : lora2 === true ? 'LoRA 2' :
-   *               undefined]`, empty fallback `'aus'`
+   * - lora:     one part per entry of `store.loras()` (#34): `typeof form[lora.key] === 'number'`
+   *             -> `` `${lora.label} ${value}` ``, everything else skipped;
+   *             empty fallback `'aus'`
    */
   groupSummary(group: ParamGroup): string {
     const f = this.store.form();
@@ -275,17 +272,17 @@ export class ParamForm {
       );
     }
     return summary(
-      [
-        f.lora_strength !== undefined ? `LoRA 1 ${f.lora_strength}` : undefined,
-        typeof f.lora2 === 'number' ? `LoRA 2 ${f.lora2}` : f.lora2 === true ? 'LoRA 2' : undefined,
-      ],
+      this.store.loras().map((lora) => {
+        const value = f[lora.key];
+        return typeof value === 'number' ? `${lora.label} ${value}` : undefined;
+      }),
       'aus',
     );
   }
 
-  /** `store.form.set(structuredClone(DEFAULT_REQUEST))`. */
+  /** `store.form.set(store.defaultForm())` - defaults incl. the configured LoRA strengths (#34). */
   resetToDefaults(): void {
-    this.store.form.set(structuredClone(DEFAULT_REQUEST));
+    this.store.form.set(this.store.defaultForm());
   }
 
   /** Helper for the template: `typeof v === 'object' && v !== null`. */

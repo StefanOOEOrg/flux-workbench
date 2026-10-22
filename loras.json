@@ -1,0 +1,6 @@
+{
+  "loras": [
+    { "key": "lora_strength", "label": "LoRA 1", "default": 0.2, "toggle": false },
+    { "key": "lora2", "label": "LoRA 2", "default": 1.35, "toggle": true }
+  ]
+}
