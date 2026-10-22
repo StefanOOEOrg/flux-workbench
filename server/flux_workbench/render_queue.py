@@ -107,7 +107,7 @@ class RenderQueue:
         No effect on the filesystem: images and settings of ``done`` jobs stay in the project.
         Empty queue or only queued/running jobs -> no change, no exception.
         """
-        raise NotImplementedError
+        self._jobs = [j for j in self._jobs if j.status not in ("done", "error", "cancelled")]
 
     async def process(self, job: Job) -> None:
         """Run one job; never raises.

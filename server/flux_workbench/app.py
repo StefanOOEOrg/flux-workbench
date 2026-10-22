@@ -141,7 +141,8 @@ def create_app(
         ``queued``/``running`` jobs stay. Must stay ``async def`` like ``cancel_job`` so it
         runs on the event loop of the worker instead of a threadpool.
         """
-        raise NotImplementedError
+        queue.clear_finished()
+        return Response(status_code=204)
 
     if web_dist is not None and web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
