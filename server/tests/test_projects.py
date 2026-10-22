@@ -222,3 +222,57 @@ def test_save_render_writes_png_and_json(store) -> None:
     assert n == 2
     assert (folder / "2.png").read_bytes() == PNG
     assert json.loads((folder / "2.json").read_text(encoding="utf-8")) == settings
+
+
+def test_delete_image_removes_png_and_json(store) -> None:
+    folder = make_project(
+        store,
+        "20261007-x",
+        {1: {"request": {"steps": 1}}, 2: {"request": {"steps": 2}}, 3: {"request": {"steps": 3}}},
+    )
+    store.delete_image("20261007-x", 2)
+    assert not (folder / "2.png").exists()
+    assert not (folder / "2.json").exists()
+    assert store.list_images("20261007-x") == [1, 3]
+    assert (folder / "1.png").read_bytes() == PNG
+    assert store.read_settings("20261007-x", 1)["request"] == {"steps": 1}
+    assert store.read_settings("20261007-x", 3)["request"] == {"steps": 3}
+
+
+def test_delete_image_keeps_the_gap(store) -> None:
+    make_project(store, "20261007-x", {1: {}, 2: {}, 3: {}, 4: {}})
+    store.delete_image("20261007-x", 2)
+    assert store.list_images("20261007-x") == [1, 3, 4]
+    store.delete_image("20261007-x", 4)
+    assert store.list_images("20261007-x") == [1, 3]
+    assert store.next_number("20261007-x") == 4
+
+
+def test_delete_image_png_without_json(store) -> None:
+    folder = make_project(store, "20261007-x", {4: {}})
+    (folder / "4.json").unlink()
+    store.delete_image("20261007-x", 4)
+    assert not (folder / "4.png").exists()
+
+
+def test_delete_image_json_without_png_is_not_found(store) -> None:
+    folder = make_project(store, "20261007-x", {5: {}})
+    (folder / "5.png").unlink()
+    with pytest.raises(NotFound):
+        store.delete_image("20261007-x", 5)
+    assert (folder / "5.json").exists()
+
+
+@pytest.mark.parametrize("bad", [0, -3])
+def test_delete_image_rejects_bad_number(store, bad: int) -> None:
+    make_project(store, "20261007-x", {1: {}})
+    with pytest.raises(ProjectError):
+        store.delete_image("20261007-x", bad)
+
+
+def test_delete_image_unknown_image_and_project(store) -> None:
+    make_project(store, "20261007-x", {1: {}})
+    with pytest.raises(NotFound):
+        store.delete_image("20261007-x", 7)
+    with pytest.raises(ProjectError):
+        store.delete_image("../x", 1)

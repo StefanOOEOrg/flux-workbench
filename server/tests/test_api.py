@@ -77,6 +77,24 @@ def test_save_comment(api: TestClient, store) -> None:
     assert api.put(url, json={}).status_code == 422
 
 
+def test_delete_image(api: TestClient, store) -> None:
+    folder = make_project(
+        store, PID, {n: {"request": {"steps": n}, "effective": None} for n in [1, 2, 3]}
+    )
+    assert api.delete(f"/api/projects/{PID}/images/2").status_code == 204
+    assert not (folder / "2.png").exists()
+    assert not (folder / "2.json").exists()
+    assert api.get(f"/api/projects/{PID}/images").json() == [1, 3]
+    assert api.get(f"/api/projects/{PID}/images/2").status_code == 404
+    assert api.get(f"/api/projects/{PID}/images/2/settings").status_code == 404
+    assert api.get(f"/api/projects/{PID}/images/1").content == PNG
+    assert api.get("/api/projects").json() == [{"id": PID, "image_count": 2}]
+    assert api.delete(f"/api/projects/{PID}/images/2").status_code == 404
+    assert api.delete(f"/api/projects/{PID}/images/0").status_code == 400
+    assert api.delete("/api/projects/not-a-project/images/1").status_code == 400
+    assert api.delete("/api/projects/..%2F..%2Fetc/images/1").status_code in (400, 404, 405)
+
+
 def test_path_traversal_rejected(api: TestClient) -> None:
     assert api.get("/api/projects/..%2F..%2Fetc/images").status_code in (400, 404)
     assert api.get("/api/projects/not-a-project/images").status_code == 400

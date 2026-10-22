@@ -12,6 +12,7 @@
         (click)="store.selectImage(n)"
         (keydown.enter)="store.selectImage(n)"
         (dblclick)="store.openImage(n)"
+        (contextmenu)="openMenu(n, $event)"
       >
         <img [src]="store.imageUrl(n)" loading="lazy" [alt]="'Image ' + n" />
         <figcaption class="n">{{ n }}</figcaption>
@@ -25,5 +26,19 @@
   </div>
   @if (store.images().length === 0 && store.projectPendingJobs().length === 0) {
     <p class="hint">No images yet – enter a prompt and render</p>
+  }
+  @if (menu(); as m) {
+    <div
+      data-testid="context-backdrop"
+      class="backdrop"
+      tabindex="0"
+      (click)="closeMenu()"
+      (keydown.enter)="closeMenu()"
+    ></div>
+    <div data-testid="context-menu" class="menu" [style.left.px]="m.x" [style.top.px]="m.y">
+      <button type="button" data-testid="context-delete" class="danger" (click)="remove(m.n)">
+        Delete image
+      </button>
+    </div>
   }
 }

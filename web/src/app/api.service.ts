@@ -58,6 +58,14 @@ export class ApiService {
   }
 
   /**
+   * `DELETE /api/projects/{id}/images/{n}` -> `void` (204, no body).
+   * Deletes the PNG and the settings file of image `n` (no renumbering, #25).
+   */
+  deleteImage(projectId: string, n: number): Observable<void> {
+    return this.http.delete<void>(`/api/projects/${encodeURIComponent(projectId)}/images/${n}`);
+  }
+
+  /**
    * URL for `<img src>`: `/api/projects/{id}/images/{n}` (no HTTP call).
    * `version` is appended as `?v={version}` when given, to bust the browser cache.
    */

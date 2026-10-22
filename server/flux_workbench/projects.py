@@ -150,6 +150,29 @@ class ProjectStore:
         """
         shutil.rmtree(self.project_dir(project_id))
 
+    def delete_image(self, project_id: str, n: int) -> None:
+        """Delete ``<n>.png`` and ``<n>.json`` of the project (no renumbering, #25).
+
+        Steps:
+        1. Validate ``project_id`` and ``n`` like ``image_path``: invalid project id or
+           ``n < 1`` -> ``ProjectError``; a missing ``<n>.png`` -> ``NotFound``. The PNG
+           decides whether the image exists at all.
+        2. Remove ``<n>.png``.
+        3. Remove ``<n>.json`` only if it exists (``Path.unlink(missing_ok=True)``): a PNG
+           without a settings file is valid, so this must not raise.
+
+        Other files, other images and other projects are never touched. The remaining
+        images keep their numbers (the gap stays), so ``next_number`` keeps counting from
+        the highest remaining number.
+
+        Raises:
+            ProjectError: invalid project id, ``n < 1``.
+            NotFound: project or ``<n>.png`` does not exist.
+        """
+        png = self.image_path(project_id, n)
+        png.unlink()
+        (png.parent / f"{n}.json").unlink(missing_ok=True)
+
     def list_images(self, project_id: str) -> list[int]:
         """Return the numbers ``n`` of all ``<n>.png`` files, sorted ascending as ints.
 

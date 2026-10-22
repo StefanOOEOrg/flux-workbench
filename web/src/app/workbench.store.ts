@@ -262,6 +262,81 @@ export class WorkbenchStore {
   }
 
   /**
+   * Delete image `n` of the selected project (#25). NO confirmation - Stefan decided
+   * against a dialog; the right-click + menu entry is the only gate.
+   *
+   * - No selected project: return, no HTTP call.
+   * - 1. `await firstValueFrom(api.deleteImage(project, n))`. On error: `error =
+   *      errorMessage(err)`, nothing else changes, return.
+   * - 2. `await loadProjects()` (refreshes `image_count` of the project list).
+   * - 3. Reload `images` (`listImages`), `images.set(list)`, `imagesVersion.update(v => v + 1)`.
+   *      On error: `error` set, return.
+   * - 4. Selection, compared with `selectedImage()` as it was BEFORE the delete:
+   *      - nothing selected: done (`settings`, `previousSettings`, `diff`, `form` and
+   *        `formBaseline` stay untouched).
+   *      - the deleted image was NOT the selected one: keep `selectedImage`, `settings` and
+   *        the form (`form`/`formBaseline`) untouched, but refresh the predecessor view with
+   *        `await showImage(selected)`, so `diff`/`previousSettings` refer to the NEW
+   *        predecessor (a deleted predecessor must not leave a stale diff). The form is NOT
+   *        reloaded - unrendered changes stay. If the selected image is no longer in `list`,
+   *        clear the selection like in the last bullet.
+   *      - the deleted image WAS the selected one: successor = the first number in `list`
+   *        greater than `n`, otherwise the last number in `list` lower than `n`.
+   *        * successor found: `if (await showImage(successor)) loadForm(settings()!.request)`
+   *          - deliberately WITHOUT `confirmDiscard()` (the delete was the user's consent).
+   *        * no successor (no image left): `selectedImage`, `settings` and `previousSettings`
+   *          -> null, `diff` -> []; `form` and `formBaseline` stay untouched (the user may
+   *          want to render the same settings again).
+   * - 5. On success `error` is null (step 2 already resets it).
+   */
+  async deleteImage(n: number): Promise<void> {
+    const project = this.selectedProject();
+    if (project === null) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.deleteImage(project, n));
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return;
+    }
+    await this.loadProjects();
+    let list: number[];
+    try {
+      list = await firstValueFrom(this.api.listImages(project));
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return;
+    }
+    this.images.set(list);
+    this.imagesVersion.update((v) => v + 1);
+
+    const selected = this.selectedImage();
+    if (selected === null) {
+      return;
+    }
+    if (selected === n) {
+      // Successor: the next higher number, otherwise the highest lower one.
+      const successor = list.find((x) => x > n) ?? list.filter((x) => x < n).pop() ?? null;
+      if (successor !== null) {
+        if (await this.showImage(successor)) {
+          this.loadForm(this.settings()!.request);
+        }
+        return;
+      }
+    } else if (list.includes(selected)) {
+      // Selected image survived: refresh only the predecessor view, keep the form.
+      await this.showImage(selected);
+      return;
+    }
+    // No image left to show: clear the image column, form and baseline stay untouched.
+    this.selectedImage.set(null);
+    this.settings.set(null);
+    this.previousSettings.set(null);
+    this.diff.set([]);
+  }
+
+  /**
    * User selects project `id` (click in the project list). If `!confirmDiscard()`: return
    * without any change. Otherwise `await loadProject(id)`.
    */
