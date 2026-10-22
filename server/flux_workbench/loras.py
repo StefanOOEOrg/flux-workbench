@@ -122,6 +122,8 @@ def load_loras(path: Path) -> LoraConfig:
         return LoraConfig(
             DEFAULT_LORAS, f"LoRA config {name} unreadable ({exc.strerror}) - using defaults"
         )
+    except UnicodeDecodeError:
+        return LoraConfig(DEFAULT_LORAS, f"LoRA config {name} is not valid UTF-8 - using defaults")
     try:
         data = json.loads(text)
     except ValueError:
