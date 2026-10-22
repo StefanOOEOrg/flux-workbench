@@ -290,8 +290,50 @@ export class WorkbenchStore {
    * - 5. On success `error` is null (step 2 already resets it).
    */
   async deleteImage(n: number): Promise<void> {
-    void n;
-    throw new Error('not implemented');
+    const project = this.selectedProject();
+    if (project === null) {
+      return;
+    }
+    try {
+      await firstValueFrom(this.api.deleteImage(project, n));
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return;
+    }
+    await this.loadProjects();
+    let list: number[];
+    try {
+      list = await firstValueFrom(this.api.listImages(project));
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return;
+    }
+    this.images.set(list);
+    this.imagesVersion.update((v) => v + 1);
+
+    const selected = this.selectedImage();
+    if (selected === null) {
+      return;
+    }
+    if (selected === n) {
+      // Successor: the next higher number, otherwise the highest lower one.
+      const successor = list.find((x) => x > n) ?? list.filter((x) => x < n).pop() ?? null;
+      if (successor !== null) {
+        if (await this.showImage(successor)) {
+          this.loadForm(this.settings()!.request);
+        }
+        return;
+      }
+    } else if (list.includes(selected)) {
+      // Selected image survived: refresh only the predecessor view, keep the form.
+      await this.showImage(selected);
+      return;
+    }
+    // No image left to show: clear the image column, form and baseline stay untouched.
+    this.selectedImage.set(null);
+    this.settings.set(null);
+    this.previousSettings.set(null);
+    this.diff.set([]);
   }
 
   /**

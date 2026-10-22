@@ -62,9 +62,7 @@ export class ApiService {
    * Deletes the PNG and the settings file of image `n` (no renumbering, #25).
    */
   deleteImage(projectId: string, n: number): Observable<void> {
-    void projectId;
-    void n;
-    throw new Error('not implemented');
+    return this.http.delete<void>(`/api/projects/${encodeURIComponent(projectId)}/images/${n}`);
   }
 
   /**

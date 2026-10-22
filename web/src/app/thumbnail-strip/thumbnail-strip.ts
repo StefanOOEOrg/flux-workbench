@@ -64,25 +64,24 @@ export class ThumbnailStrip {
    * mouse position (`event.clientX` / `event.clientY`). Never changes the selection.
    */
   openMenu(n: number, event: MouseEvent): void {
-    void n;
-    void event;
-    throw new Error('not implemented');
+    event.preventDefault();
+    this.menu.set({ n, x: event.clientX, y: event.clientY });
   }
 
   /** Close the context menu. */
   closeMenu(): void {
-    throw new Error('not implemented');
+    this.menu.set(null);
   }
 
   /** Close the context menu, then delete image `n` through the store (no confirmation). */
   async remove(n: number): Promise<void> {
-    void n;
-    throw new Error('not implemented');
+    this.closeMenu();
+    await this.store.deleteImage(n);
   }
 
   /** Esc anywhere on the page closes the menu. */
   @HostListener('document:keydown.escape')
   onEscape(): void {
-    throw new Error('not implemented');
+    this.closeMenu();
   }
 }
