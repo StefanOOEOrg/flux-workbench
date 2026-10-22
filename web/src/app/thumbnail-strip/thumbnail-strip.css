@@ -55,3 +55,31 @@
   color: var(--muted);
   cursor: default;
 }
+
+/* Context menu (#25) */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.menu {
+  position: fixed;
+  z-index: 41;
+  display: grid;
+  min-width: 170px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+}
+
+.menu button {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.danger {
+  color: var(--rem);
+}
