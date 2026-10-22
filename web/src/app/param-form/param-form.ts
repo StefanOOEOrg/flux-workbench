@@ -257,7 +257,21 @@ export class ParamForm {
    * - `testId = `f-${key}``, `switchTestId = `f-${key}-on``
    * Recomputed whenever either signal changes. `[]` without configured slots.
    */
-  readonly loraViews = computed<LoraView[]>(() => []);
+  readonly loraViews = computed<LoraView[]>(() => {
+    const form = this.store.form();
+    return this.store.loras().map((lora) => {
+      const value = form[lora.key];
+      const on = this.isOn(value);
+      return {
+        ...lora,
+        value,
+        on,
+        disabled: lora.toggle && !on,
+        testId: `f-${lora.key}`,
+        switchTestId: `f-${lora.key}-on`,
+      };
+    });
+  });
 
   /**
    * Text for the collapsed group header (use `summary()` from `../format`), from `store.form()`.
