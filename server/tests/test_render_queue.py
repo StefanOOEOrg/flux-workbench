@@ -1,13 +1,14 @@
 import asyncio
 import json
+from typing import Any
 
 import pytest
 
-from flux_workbench.bridge import BridgeError
+from flux_workbench.bridge import BridgeError, RenderResult
 from flux_workbench.projects import NotFound, ProjectError
 from flux_workbench.render_queue import JobNotCancellable, RenderQueue
 
-from .conftest import FakeRenderer, make_project
+from .conftest import PNG, FakeRenderer, make_project
 
 PID = "20261007-x"
 
@@ -163,3 +164,89 @@ async def test_submit_copies_request_and_lists_in_order(store) -> None:
     assert first.request["hires"]["scale"] == 1.5
     assert [j.id for j in queue.list_jobs()] == [first.id, second.id]
     assert first.status == "queued"
+
+
+async def test_clear_finished_removes_done_error_and_cancelled(store) -> None:
+    make_project(store, PID, {})
+    queue = RenderQueue(store, FakeRenderer(errors={0: BridgeError("boom")}))
+    failed = queue.submit(PID, {"prompt": "fails"})
+    await run_until_idle(queue)
+    assert failed.status == "error"
+    cancelled = queue.submit(PID, {"prompt": "skip me"})
+    queue.cancel(cancelled.id)
+
+    queue.clear_finished()
+
+    assert queue.list_jobs() == []
+
+
+def test_clear_finished_keeps_queued_jobs(store) -> None:
+    make_project(store, PID, {})
+    queue = RenderQueue(store, FakeRenderer())
+    first = queue.submit(PID, {"prompt": "a"})
+    second = queue.submit(PID, {"prompt": "b"})
+
+    queue.clear_finished()
+
+    assert [j.id for j in queue.list_jobs()] == [first.id, second.id]
+    assert [j.status for j in queue.list_jobs()] == ["queued", "queued"]
+
+
+def test_clear_finished_on_empty_queue_changes_nothing(store) -> None:
+    make_project(store, PID, {})
+    queue = RenderQueue(store, FakeRenderer())
+
+    queue.clear_finished()
+
+    assert queue.list_jobs() == []
+
+
+async def test_clear_finished_keeps_the_running_job_and_still_saves_it(store) -> None:
+    folder = make_project(store, PID, {})
+    renderer = BlockingRenderer()
+    queue = RenderQueue(store, renderer)
+    job = queue.submit(PID, {"prompt": "slow"})
+    worker = asyncio.create_task(queue.run_worker())
+    try:
+        await asyncio.wait_for(renderer.started.wait(), timeout=5)
+        assert job.status == "running"
+
+        queue.clear_finished()
+
+        assert [j.id for j in queue.list_jobs()] == [job.id]
+        renderer.release.set()
+        await asyncio.wait_for(queue.join(), timeout=5)
+    finally:
+        worker.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await worker
+    assert (job.status, job.image_n) == ("done", 1)
+    assert (folder / "1.png").exists()
+
+
+async def test_clear_finished_lets_new_jobs_run_normally(store) -> None:
+    make_project(store, PID, {})
+    queue = RenderQueue(store, FakeRenderer())
+    done = queue.submit(PID, {"prompt": "first"})
+    await run_until_idle(queue)
+    assert (done.status, done.image_n) == ("done", 1)
+
+    queue.clear_finished()
+    fresh = queue.submit(PID, {"prompt": "second"})
+    await run_until_idle(queue)
+
+    assert [j.id for j in queue.list_jobs()] == [fresh.id]
+    assert (fresh.status, fresh.image_n) == ("done", 2)
+
+
+class BlockingRenderer:
+    """Renders only after the test releases it, so a job can be observed as ``running``."""
+
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def render(self, request: dict[str, Any]) -> RenderResult:
+        self.started.set()
+        await self.release.wait()
+        return RenderResult(png=PNG, effective={**request, "seed": 7})

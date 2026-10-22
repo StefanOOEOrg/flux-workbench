@@ -666,4 +666,27 @@ describe('QueuePanel', () => {
     expect(panel.title(job('a', 'done', 6, '20261008-Green_Car'))).toBe('#6 · Green_Car');
     expect(panel.title(job('b', 'queued', null, '20261006-Portrait'))).toBe('Portrait');
   });
+
+  it('clears the finished jobs with the Clear button, disabled while nothing is finished', async () => {
+    const { store, fixture, one } = render(QueuePanel);
+    const clear = vi.spyOn(store, 'clearQueue').mockResolvedValue();
+    store.jobs.set([job('e', 'error'), job('r', 'running')]);
+    fixture.detectChanges();
+
+    const button = one('clear') as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toContain('Clear');
+    button.click();
+    await fixture.whenStable();
+    expect(clear).toHaveBeenCalledTimes(1);
+
+    store.jobs.set([job('r', 'running'), job('q', 'queued')]);
+    fixture.detectChanges();
+    const disabled = one('clear') as HTMLButtonElement;
+    expect(disabled.disabled).toBe(true);
+    disabled.click();
+    await fixture.whenStable();
+    expect(clear).toHaveBeenCalledTimes(1);
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
 });

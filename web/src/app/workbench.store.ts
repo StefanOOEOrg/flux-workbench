@@ -498,6 +498,20 @@ export class WorkbenchStore {
   }
 
   /**
+   * Clear the render queue history (#30): remove the `done`/`error`/`cancelled` jobs.
+   *
+   * - `await firstValueFrom(api.clearQueue())`; on error `error = errorMessage(err)` and return
+   *   (the job list stays unchanged).
+   * - On success `error.set(null)` FIRST - `refreshJobs()` deliberately does not reset the error
+   *   (it runs every 2 s), so this is the only place that clears an old message here - then
+   *   `await refreshJobs()`.
+   * - Selection, settings, form and the project list are not touched.
+   */
+  async clearQueue(): Promise<void> {
+    throw new Error('not implemented');
+  }
+
+  /**
    * Poll target (called every 2 s by `App`): `jobs.set(await listJobs())`.
    * If a job of the selected project changed to `done` since the previous poll (job id was
    * not `done` in the old `jobs()` list, or was not in it), reload `images` (increment

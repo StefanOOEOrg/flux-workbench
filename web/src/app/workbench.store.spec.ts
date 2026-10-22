@@ -26,6 +26,7 @@ class FakeApi {
   deleted: string[] = [];
   failComment = false;
   failDelete = false;
+  failClear = false;
 
   listProjects(): Observable<ProjectInfo[]> {
     this.calls.push('listProjects');
@@ -90,6 +91,14 @@ class FakeApi {
     return of(job);
   }
   cancelJob(): Observable<void> {
+    return of(undefined);
+  }
+  clearQueue(): Observable<void> {
+    this.calls.push('clearQueue');
+    if (this.failClear) {
+      return throwError(() => new HttpErrorResponse({ status: 500, error: { detail: 'boom' } }));
+    }
+    this.jobs = this.jobs.filter((j) => j.status === 'queued' || j.status === 'running');
     return of(undefined);
   }
 }
@@ -626,6 +635,38 @@ describe('WorkbenchStore', () => {
       await store.deleteImage(1);
 
       expect(api.deleted).toEqual([]);
+    });
+  });
+
+  describe('clearQueue', () => {
+    it('removes the finished jobs, reloads the queue and clears an old error', async () => {
+      const { store, api } = setup();
+      api.jobs = [
+        makeJob('d', 'done', 1),
+        makeJob('e', 'error', null),
+        makeJob('r', 'running', null),
+        makeJob('q', 'queued', null),
+      ];
+      await store.refreshJobs();
+      store.error.set('old message');
+
+      await store.clearQueue();
+
+      expect(api.calls).toContain('clearQueue');
+      expect(store.jobs().map((j) => j.id)).toEqual(['r', 'q']);
+      expect(store.error()).toBeNull();
+    });
+
+    it('reports errors and keeps the queue unchanged', async () => {
+      const { store, api } = setup();
+      api.jobs = [makeJob('d', 'done', 1), makeJob('r', 'running', null)];
+      await store.refreshJobs();
+      api.failClear = true;
+
+      await store.clearQueue();
+
+      expect(store.error()).toBe('boom');
+      expect(store.jobs().map((j) => j.id)).toEqual(['d', 'r']);
     });
   });
 });
