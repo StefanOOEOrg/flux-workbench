@@ -584,8 +584,8 @@ describe('ParamForm', () => {
     expect(one('no-loras')).toBeUndefined();
     const detail = one('f-lora_detail') as HTMLInputElement;
     expect(detail.value).toBe('0.5');
-    // #41: name and field live in sibling cells of one row, so assert on the row
-    expect(detail.closest('tr')!.textContent).toContain('Detail');
+    // #43: name and field live in the two cells of one grid row
+    expect(detail.closest('.lora-row')!.textContent).toContain('Detail');
     expect(detail.getAttribute('aria-label')).toBe('Detail');
 
     const styleOn = one('f-lora_style-on') as HTMLInputElement;
@@ -602,7 +602,40 @@ describe('ParamForm', () => {
     expect(off.value).toBe('');
   });
 
-  it('renders one stable table row per LoRA slot (#41)', () => {
+  it('derives one view model per LoRA slot (#43)', () => {
+    const { store, fixture } = render(ParamForm);
+    store.loras.set(LORAS);
+    store.form.set(store.defaultForm());
+    fixture.detectChanges();
+
+    const views = fixture.componentInstance.loraViews();
+    expect(views.map((v) => v.key)).toEqual(['lora_strength', 'lora2']);
+    expect(views[0]).toMatchObject({
+      testId: 'f-lora_strength',
+      switchTestId: 'f-lora_strength-on',
+      value: 0.2,
+      on: true,
+      disabled: false,
+    });
+    expect(views[1]).toMatchObject({
+      testId: 'f-lora2',
+      switchTestId: 'f-lora2-on',
+      value: 1.35,
+      on: true,
+      disabled: false,
+    });
+
+    store.form.update((f) => ({ ...f, lora2: false }));
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.loraViews()[1]).toMatchObject({
+      value: false,
+      on: false,
+      disabled: true,
+    });
+  });
+
+  it('renders one stable grid row per LoRA slot (#41/#43)', () => {
     const { store, fixture, one } = render(ParamForm);
     store.loras.set(LORAS);
     store.form.set(store.defaultForm());

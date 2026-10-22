@@ -230,40 +230,38 @@
   @if (store.loras().length === 0) {
     <p class="hint" data-testid="no-loras">No LoRAs configured</p>
   } @else {
-    <table class="lora">
-      <tbody>
-        @for (lora of store.loras(); track lora.key) {
-          <tr [attr.data-testid]="'lora-row-' + lora.key">
-            <td class="name">
-              @if (lora.toggle) {
-                <label class="sw">
-                  <input
-                    type="checkbox"
-                    [attr.data-testid]="'f-' + lora.key + '-on'"
-                    [checked]="isOn(store.form()[lora.key])"
-                    (change)="setLoraEnabled(lora, $any($event.target).checked)"
-                  />
-                </label>
-              }
-              {{ lora.label }}
-            </td>
-            <td class="val">
-              <input
-                type="number"
-                min="0"
-                max="2"
-                step="0.05"
-                [attr.data-testid]="'f-' + lora.key"
-                [attr.aria-label]="lora.label"
-                [value]="store.form()[lora.key] ?? ''"
-                (input)="setLoraStrength(lora.key, $any($event.target).value)"
-                [disabled]="lora.toggle && !isOn(store.form()[lora.key])"
-              />
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <div class="lora">
+      @for (view of loraViews(); track view.key) {
+        <div class="lora-row" [attr.data-testid]="'lora-row-' + view.key">
+          <span class="name">
+            @if (view.toggle) {
+              <label class="sw">
+                <input
+                  type="checkbox"
+                  [attr.data-testid]="view.switchTestId"
+                  [checked]="view.on"
+                  (change)="setLoraEnabled(view, $any($event.target).checked)"
+                />
+              </label>
+            }
+            {{ view.label }}
+          </span>
+          <span class="val">
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              [attr.data-testid]="view.testId"
+              [attr.aria-label]="view.label"
+              [value]="view.value ?? ''"
+              (input)="setLoraStrength(view.key, $any($event.target).value)"
+              [disabled]="view.disabled"
+            />
+          </span>
+        </div>
+      }
+    </div>
     <div class="hint">only with model “flux-lora”</div>
   }
 </details>
