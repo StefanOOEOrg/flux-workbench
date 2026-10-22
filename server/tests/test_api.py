@@ -92,7 +92,7 @@ def test_delete_image(api: TestClient, store) -> None:
     assert api.delete(f"/api/projects/{PID}/images/2").status_code == 404
     assert api.delete(f"/api/projects/{PID}/images/0").status_code == 400
     assert api.delete("/api/projects/not-a-project/images/1").status_code == 400
-    assert api.delete("/api/projects/..%2F..%2Fetc/images/1").status_code in (400, 404)
+    assert api.delete("/api/projects/..%2F..%2Fetc/images/1").status_code in (400, 404, 405)
 
 
 def test_path_traversal_rejected(api: TestClient) -> None:

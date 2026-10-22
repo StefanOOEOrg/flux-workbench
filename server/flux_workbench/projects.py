@@ -169,7 +169,9 @@ class ProjectStore:
             ProjectError: invalid project id, ``n < 1``.
             NotFound: project or ``<n>.png`` does not exist.
         """
-        raise NotImplementedError
+        png = self.image_path(project_id, n)
+        png.unlink()
+        (png.parent / f"{n}.json").unlink(missing_ok=True)
 
     def list_images(self, project_id: str) -> list[int]:
         """Return the numbers ``n`` of all ``<n>.png`` files, sorted ascending as ints.
