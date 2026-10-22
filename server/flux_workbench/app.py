@@ -111,7 +111,8 @@ def create_app(
         A missing image -> 404, an invalid project id or ``n < 1`` -> 400 (both come from
         the exception handlers above, the route does not catch anything).
         """
-        raise NotImplementedError
+        store.delete_image(project_id, n)
+        return Response(status_code=204)
 
     @app.get("/api/queue")
     def list_jobs() -> list[dict[str, Any]]:
