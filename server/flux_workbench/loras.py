@@ -118,7 +118,7 @@ def load_loras(path: Path) -> LoraConfig:
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        return LoraConfig(DEFAULT_LORAS, f"LoRA config {name} not found - using defaults")
+        return LoraConfig((), None)
     except OSError as exc:
         return LoraConfig(
             DEFAULT_LORAS, f"LoRA config {name} unreadable ({exc.strerror}) - using defaults"
