@@ -76,11 +76,18 @@ def test_load_loras_reads_the_file(tmp_path) -> None:
     assert config.warning is None
 
 
-@pytest.mark.parametrize("content", [None, "not json", "[1, 2]", '{"loras": [{"key": ""}]}'])
+def test_load_loras_without_a_file_has_no_slots_and_no_warning(tmp_path) -> None:
+    """A fresh clone has no ``loras.json`` - that is "no LoRAs configured", not an error."""
+    config = load_loras(tmp_path / "loras.json")
+
+    assert config.loras == ()
+    assert config.warning is None
+
+
+@pytest.mark.parametrize("content", ["not json", "[1, 2]", '{"loras": [{"key": ""}]}'])
 def test_load_loras_falls_back_to_the_defaults_with_a_warning(tmp_path, content) -> None:
     path = tmp_path / "loras.json"
-    if content is not None:
-        path.write_text(content, encoding="utf-8")
+    path.write_text(content, encoding="utf-8")
 
     config = load_loras(path)
 

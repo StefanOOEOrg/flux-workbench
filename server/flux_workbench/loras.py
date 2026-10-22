@@ -40,7 +40,8 @@ class LoraConfig:
     warning: str | None = None
 
 
-#: Used when the config file is missing or invalid - the values that were hardcoded before #34.
+#: Used when the config file exists but is broken (unreadable / invalid JSON / invalid entries).
+#: A MISSING file is not an error: that means "no LoRAs configured" and yields no slots.
 DEFAULT_LORAS: tuple[Lora, ...] = (
     Lora(key="lora_strength", label="LoRA 1", default=0.2, toggle=False),
     Lora(key="lora2", label="LoRA 2", default=1.35, toggle=True),
@@ -104,8 +105,8 @@ def parse_loras(data: object) -> tuple[Lora, ...]:
 def load_loras(path: Path) -> LoraConfig:
     """Read ``path`` and return the configured slots.
 
-    - File missing -> ``LoraConfig(DEFAULT_LORAS, "LoRA config <name> not found - using
-      defaults")``.
+    - File missing (fresh clone, template not copied yet) -> ``LoraConfig((), None)``: no slots,
+      no warning - the form shows the hint "No LoRAs configured".
     - ``OSError`` / JSON error / not a JSON object / ``LoraConfigError`` ->
       ``LoraConfig(DEFAULT_LORAS, "<short reason> - using defaults")``; the reason must contain
       the file name, so the user sees which file is broken.
