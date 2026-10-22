@@ -8,7 +8,9 @@ import { WorkbenchStore } from '../workbench.store';
  * Render queue (bottom of the left column, issue #11 / mockup). Logic unchanged, new look.
  *
  * Template (`queue-panel.html`):
- * - `<h2>Queue</h2>`.
+ * - Header row `<div class="head"><h2>Queue</h2><button type="button" data-testid="clear"
+ *   class="ghost" [disabled]="!canClear()" (click)="store.clearQueue()">Clear</button></div>`
+ *   (#30). `canClear()` is false while nothing is finished, so the button is disabled.
  * - For each job in `visibleJobs()` (track `job.id`): card `<div data-testid="job"
  *   [class]="'job ' + job.status">` with a row `<span>{{ title(job) }}</span><span
  *   class="badge">{{ statusLabel(job) }}</span>`, below `<div class="p">` with the first 60
@@ -28,6 +30,14 @@ import { WorkbenchStore } from '../workbench.store';
 })
 export class QueuePanel {
   protected readonly store = inject(WorkbenchStore);
+
+  /**
+   * `true` if any job is finished (`done`/`error`/`cancelled`), i.e. there is something for the
+   * "Clear" button to remove (#30). `queued`/`running` jobs never count.
+   */
+  readonly canClear = computed<boolean>(() => {
+    return this.store.jobs().some((j) => j.status !== 'queued' && j.status !== 'running');
+  });
 
   /**
    * Jobs to show, newest first: all `queued`/`running`/`error` jobs plus the last 5 `done`

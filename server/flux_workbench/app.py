@@ -133,6 +133,16 @@ def create_app(
         queue.cancel(job_id)
         return Response(status_code=204)
 
+    @app.delete("/api/queue", status_code=204)
+    async def clear_queue() -> Response:
+        """``queue.clear_finished()``; return ``Response(status_code=204)``.
+
+        Removes the ``done``/``error``/``cancelled`` jobs from the queue history (#30);
+        ``queued``/``running`` jobs stay. Must stay ``async def`` like ``cancel_job`` so it
+        runs on the event loop of the worker instead of a threadpool.
+        """
+        raise NotImplementedError
+
     if web_dist is not None and web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     return app

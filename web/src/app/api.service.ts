@@ -79,6 +79,14 @@ export class ApiService {
     return this.http.get<Job[]>('/api/queue');
   }
 
+  /**
+   * `DELETE /api/queue` -> `void` (204, no body). Clears the finished jobs (`done`/`error`/
+   * `cancelled`) from the queue history, `queued`/`running` stay (#30).
+   */
+  clearQueue(): Observable<void> {
+    throw new Error('not implemented');
+  }
+
   /** `POST /api/queue` with body `{project_id, request}` -> the created job. */
   submitJob(projectId: string, request: RenderRequest): Observable<Job> {
     return this.http.post<Job>('/api/queue', { project_id: projectId, request });

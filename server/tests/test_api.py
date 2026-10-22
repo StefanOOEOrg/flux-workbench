@@ -128,6 +128,22 @@ def test_queue_flow(api: TestClient, store) -> None:
     assert api.delete("/api/queue/unknown").status_code == 404
 
 
+def test_clear_queue(api: TestClient, store) -> None:
+    make_project(store, PID, {})
+    assert api.delete("/api/queue").status_code == 204
+    assert api.get("/api/queue").json() == []
+
+    created = api.post("/api/queue", json={"project_id": PID, "request": {"prompt": "car"}})
+    assert created.status_code == 201
+    deadline = time.monotonic() + 5
+    while api.get("/api/queue").json()[0]["status"] != "done":
+        assert time.monotonic() < deadline
+        time.sleep(0.02)
+
+    assert api.delete("/api/queue").status_code == 204
+    assert api.get("/api/queue").json() == []
+
+
 def test_queue_validation(api: TestClient, store) -> None:
     make_project(store, PID, {})
     bad = api.post("/api/queue", json={"project_id": PID, "request": {"prompt": ""}})

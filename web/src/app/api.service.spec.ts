@@ -67,6 +67,11 @@ describe('ApiService', () => {
     http.expectOne({ method: 'DELETE', url: '/api/projects/a%2Fb/images/1' }).flush(null);
   });
 
+  it('clears the queue', () => {
+    api.clearQueue().subscribe();
+    http.expectOne({ method: 'DELETE', url: '/api/queue' }).flush(null);
+  });
+
   it('talks to the queue', () => {
     api.listJobs().subscribe();
     http.expectOne({ method: 'GET', url: '/api/queue' }).flush([]);
