@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from . import config
 from .bridge import BridgeClient
+from .loras import load_loras
 from .projects import NotFound, ProjectError, ProjectExists, ProjectStore
 from .render_queue import JobNotCancellable, RenderQueue
 from .viewer import ViewerError, open_in_viewer
@@ -43,9 +44,11 @@ def create_app(
     queue: RenderQueue,
     viewer: Callable[[Path], None] = open_in_viewer,
     web_dist: Path | None = None,
+    lora_config_path: Path | None = None,
 ) -> FastAPI:
     """Build the app. Tests pass a ``tmp_path`` store, a queue with a fake renderer and a fake
-    ``viewer``; ``web_dist=None`` means no static files are served."""
+    ``viewer``; ``web_dist=None`` means no static files are served. ``lora_config_path=None``
+    means ``config.LORA_CONFIG_PATH`` (#34)."""
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -114,6 +117,19 @@ def create_app(
         store.delete_image(project_id, n)
         return Response(status_code=204)
 
+    @app.get("/api/config")
+    def get_config() -> dict[str, Any]:
+        """Return ``{"loras": [...], "warning": str | None}`` for the LoRA slots (#34).
+
+        Call ``load_loras(lora_config_path or config.LORA_CONFIG_PATH)`` from ``.loras`` (import it
+        at the top) and serialise each ``Lora`` with ``asdict`` -> ``{"key", "label", "default",
+        "toggle"}``. `load_loras` re-reads the file on every call, so editing ``loras.json`` only
+        needs a browser reload. A missing or broken file must NOT raise - it comes back as
+        ``warning`` with the defaults.
+        """
+        loaded = load_loras(lora_config_path or config.LORA_CONFIG_PATH)
+        return {"loras": [asdict(lora) for lora in loaded.loras], "warning": loaded.warning}
+
     @app.get("/api/queue")
     def list_jobs() -> list[dict[str, Any]]:
         """Return ``[asdict(job) for job in queue.list_jobs()]``."""
@@ -170,7 +186,12 @@ def build_default_app() -> FastAPI:
     """App with the real store, bridge and viewer from ``config``."""
     store = ProjectStore(config.PROJECTS_DIR)
     bridge = BridgeClient(config.BRIDGE_URL, config.BRIDGE_TIMEOUT)
-    return create_app(store, RenderQueue(store, bridge), web_dist=config.WEB_DIST_DIR)
+    return create_app(
+        store,
+        RenderQueue(store, bridge),
+        web_dist=config.WEB_DIST_DIR,
+        lora_config_path=config.LORA_CONFIG_PATH,
+    )
 
 
 def main() -> None:

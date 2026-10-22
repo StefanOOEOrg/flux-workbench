@@ -30,7 +30,13 @@ def api(store, opened, tmp_path) -> Iterator[TestClient]:
     web = tmp_path / "web"
     web.mkdir()
     (web / "index.html").write_text("<html>workbench</html>")
-    app = create_app(store, RenderQueue(store, FakeRenderer()), viewer=viewer, web_dist=web)
+    app = create_app(
+        store,
+        RenderQueue(store, FakeRenderer()),
+        viewer=viewer,
+        web_dist=web,
+        lora_config_path=tmp_path / "loras.json",
+    )
     with TestClient(app) as client:
         yield client
 
@@ -150,6 +156,28 @@ def test_queue_validation(api: TestClient, store) -> None:
     assert bad.status_code == 400
     missing = api.post("/api/queue", json={"project_id": "20261007-no", "request": {"prompt": "a"}})
     assert missing.status_code == 404
+
+
+def test_config_route(api: TestClient, tmp_path) -> None:
+    assert api.get("/api/config").json() == {"loras": [], "warning": None}
+
+    (tmp_path / "loras.json").write_text(
+        json.dumps({"loras": [{"key": "lora3", "label": "Detail", "default": 0.4}]}),
+        encoding="utf-8",
+    )
+    assert api.get("/api/config").json() == {
+        "loras": [{"key": "lora3", "label": "Detail", "default": 0.4, "toggle": False}],
+        "warning": None,
+    }
+
+
+def test_config_route_reports_a_broken_file(api: TestClient, tmp_path) -> None:
+    (tmp_path / "loras.json").write_text("not json", encoding="utf-8")
+
+    body = api.get("/api/config").json()
+
+    assert [entry["key"] for entry in body["loras"]] == ["lora_strength", "lora2"]
+    assert "loras.json" in body["warning"]
 
 
 def test_serves_web_app(api: TestClient) -> None:

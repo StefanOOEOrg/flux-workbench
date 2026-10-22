@@ -11,11 +11,13 @@ describe('App', () => {
     vi.useFakeTimers();
     TestBed.configureTestingModule({ imports: [App] });
     const store = TestBed.inject(WorkbenchStore);
+    const config = vi.spyOn(store, 'loadConfig').mockResolvedValue();
     const load = vi.spyOn(store, 'loadProjects').mockResolvedValue();
     const refresh = vi.spyOn(store, 'refreshJobs').mockResolvedValue();
 
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
+    expect(config).toHaveBeenCalledTimes(1);
     expect(load).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledTimes(1);
 
@@ -30,6 +32,7 @@ describe('App', () => {
   it('shows and dismisses errors', () => {
     TestBed.configureTestingModule({ imports: [App] });
     const store = TestBed.inject(WorkbenchStore);
+    vi.spyOn(store, 'loadConfig').mockResolvedValue();
     vi.spyOn(store, 'loadProjects').mockResolvedValue();
     vi.spyOn(store, 'refreshJobs').mockResolvedValue();
     const fixture = TestBed.createComponent(App);
@@ -45,6 +48,7 @@ describe('App', () => {
   function shell() {
     TestBed.configureTestingModule({ imports: [App] });
     const store = TestBed.inject(WorkbenchStore);
+    vi.spyOn(store, 'loadConfig').mockResolvedValue();
     vi.spyOn(store, 'loadProjects').mockResolvedValue();
     vi.spyOn(store, 'refreshJobs').mockResolvedValue();
     const fixture = TestBed.createComponent(App);

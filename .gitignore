@@ -35,3 +35,6 @@ __pycache__/
 
 # Render projects (local data, never committed)
 /projects/
+
+# Local LoRA config (per machine; only the template is committed)
+/loras.json

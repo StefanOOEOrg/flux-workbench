@@ -8,6 +8,7 @@ import {
   DiffEntry,
   ImageSettings,
   Job,
+  LoraEntry,
   ProjectInfo,
   RenderRequest,
 } from './models';
@@ -38,6 +39,12 @@ export class WorkbenchStore {
   readonly diff = signal<DiffEntry[]>([]);
   /** Settings of the predecessor of the selected image (null: first image or not loadable). */
   readonly previousSettings = signal<ImageSettings | null>(null);
+  /**
+   * LoRA slots from `GET /api/config` (#34), in display order. Empty until `loadConfig()` ran;
+   * with an empty list the parameter form shows no LoRA fields and `defaultForm()` is plain
+   * `DEFAULT_REQUEST`.
+   */
+  readonly loras = signal<LoraEntry[]>([]);
   /** Current content of the parameter form. */
   readonly form = signal<RenderRequest>(structuredClone(DEFAULT_REQUEST));
   /**
@@ -198,6 +205,46 @@ export class WorkbenchStore {
     this.formBaseline.set(structuredClone(form));
   }
 
+  /**
+   * Default form state: a deep copy of `DEFAULT_REQUEST` plus one entry per configured LoRA
+   * (#34) - `form[lora.key] = lora.default` for every entry of `loras()`, so a fresh form has the
+   * configured strengths. Never mutates `DEFAULT_REQUEST`.
+   */
+  defaultForm(): RenderRequest {
+    const form = structuredClone(DEFAULT_REQUEST);
+    for (const lora of this.loras()) {
+      form[lora.key] = lora.default;
+    }
+    return form;
+  }
+
+  /**
+   * Load the LoRA slots once at startup (#34); `App` calls this before `loadProjects()`.
+   *
+   * - `const config = await firstValueFrom(api.getConfig())`. On error `error = errorMessage(err)`,
+   *   leave `loras()` empty and return.
+   * - `loras.set(config.loras)`; `warning`: if it is a string, `error.set(warning)`, otherwise
+   *   `error.set(null)`.
+   * - Then, only if NO image is selected (`selectedImage() === null`), put a fresh
+   *   `defaultForm()` into `form` AND `formBaseline`. A form that belongs to an image must not be
+   *   touched.
+   */
+  async loadConfig(): Promise<void> {
+    let config;
+    try {
+      config = await firstValueFrom(this.api.getConfig());
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return;
+    }
+    this.loras.set(config.loras);
+    this.error.set(typeof config.warning === 'string' ? config.warning : null);
+    if (this.selectedImage() === null) {
+      this.form.set(this.defaultForm());
+      this.formBaseline.set(this.defaultForm());
+    }
+  }
+
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
     try {
@@ -251,9 +298,9 @@ export class WorkbenchStore {
         this.settings.set(null);
         this.images.set([]);
         this.diff.set([]);
-        this.form.set(structuredClone(DEFAULT_REQUEST));
+        this.form.set(this.defaultForm());
         this.previousSettings.set(null);
-        this.formBaseline.set(structuredClone(DEFAULT_REQUEST));
+        this.formBaseline.set(this.defaultForm());
       }
       this.error.set(null);
     } catch (err) {
@@ -367,7 +414,7 @@ export class WorkbenchStore {
         this.settings.set(null);
         this.previousSettings.set(null);
         this.diff.set([]);
-        this.loadForm(DEFAULT_REQUEST as unknown as Record<string, unknown>);
+        this.loadForm(this.defaultForm());
         this.error.set(null);
         return;
       }

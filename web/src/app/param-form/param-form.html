@@ -227,46 +227,55 @@
     <span class="t">LoRA</span>
     <span class="sum" data-testid="sum-lora">{{ groupSummary('lora') }}</span>
   </summary>
-  <div class="fields">
-    <label class="f wide">
-      <span>LoRA 1 (0–2)</span>
-      <input
-        type="number"
-        min="0"
-        max="2"
-        step="0.05"
-        data-testid="f-lora_strength"
-        [value]="store.form().lora_strength ?? ''"
-        (input)="setNumber('lora_strength', $any($event.target).value)"
-      />
-    </label>
-  </div>
-  <div class="toggle gap">
-    <label class="sw">
-      <input
-        type="checkbox"
-        data-testid="f-lora2-on"
-        [checked]="isOn(store.form().lora2)"
-        (change)="setLora2Enabled($any($event.target).checked)"
-      />
-    </label>
-    LoRA 2 (lora2)
-  </div>
-  @if (typeof store.form().lora2 === 'number') {
-    <div class="sub fields">
-      <label class="f">
-        <span>Strength 0–2</span>
-        <input
-          type="number"
-          min="0"
-          max="2"
-          step="0.05"
-          data-testid="f-lora2"
-          [value]="store.form().lora2 ?? ''"
-          (input)="setLora2($any($event.target).value)"
-        />
-      </label>
-    </div>
+  @if (store.loras().length === 0) {
+    <p class="hint" data-testid="no-loras">No LoRAs configured</p>
+  } @else {
+    @for (lora of store.loras(); track lora.key) {
+      @if (lora.toggle) {
+        <div class="toggle gap">
+          <label class="sw">
+            <input
+              type="checkbox"
+              [attr.data-testid]="'f-' + lora.key + '-on'"
+              [checked]="isOn(store.form()[lora.key])"
+              (change)="setLoraEnabled(lora, $any($event.target).checked)"
+            />
+          </label>
+          {{ lora.label }}
+        </div>
+        @if (typeof store.form()[lora.key] === 'number') {
+          <div class="sub fields">
+            <label class="f">
+              <span>Strength 0–2</span>
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.05"
+                [attr.data-testid]="'f-' + lora.key"
+                [value]="store.form()[lora.key] ?? ''"
+                (input)="setLoraStrength(lora.key, $any($event.target).value)"
+              />
+            </label>
+          </div>
+        }
+      } @else {
+        <div class="fields">
+          <label class="f wide">
+            <span>{{ lora.label }} (0–2)</span>
+            <input
+              type="number"
+              min="0"
+              max="2"
+              step="0.05"
+              [attr.data-testid]="'f-' + lora.key"
+              [value]="store.form()[lora.key] ?? ''"
+              (input)="setLoraStrength(lora.key, $any($event.target).value)"
+            />
+          </label>
+        </div>
+      }
+    }
+    <div class="hint">only with model “flux-lora”</div>
   }
-  <div class="hint">only with model “flux-lora”</div>
 </details>

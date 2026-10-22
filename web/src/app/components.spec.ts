@@ -414,6 +414,12 @@ describe('ImagePanel', () => {
 });
 
 describe('ParamForm', () => {
+  /** The two LoRA slots that `loras.json` ships with (#34). */
+  const LORAS = [
+    { key: 'lora_strength', label: 'LoRA 1', default: 0.2, toggle: false },
+    { key: 'lora2', label: 'LoRA 2', default: 1.35, toggle: true },
+  ];
+
   it('edits the store form immutably', () => {
     const { store, fixture } = render(ParamForm);
     const form = fixture.componentInstance;
@@ -428,7 +434,7 @@ describe('ParamForm', () => {
     form.setHires('scale', '2');
     form.setFaceFixEnabled(false);
     form.setHandFix(false);
-    form.setLora2('1.1');
+    form.setLoraStrength('lora2', '1.1');
 
     expect(store.form()).toEqual({
       prompt: 'p',
@@ -453,16 +459,32 @@ describe('ParamForm', () => {
     expect(store.form().sampler).toBe('euler');
   });
 
-  it('switches lora2 on and off', () => {
+  it('switches a toggle LoRA on and off', () => {
     const { store, fixture } = render(ParamForm);
     const form = fixture.componentInstance;
-    form.setLora2Enabled(false);
-    expect(store.form().lora2).toBe(false);
-    form.setLora2Enabled(true);
-    expect(store.form().lora2).toBe(1.35);
-    form.setLora2('0.8');
-    form.setLora2Enabled(true);
-    expect(store.form().lora2).toBe(0.8);
+    const lora = { key: 'lora2', label: 'LoRA 2', default: 1.35, toggle: true };
+
+    form.setLoraEnabled(lora, false);
+    expect(store.form()['lora2']).toBe(false);
+
+    form.setLoraEnabled(lora, true);
+    expect(store.form()['lora2']).toBe(1.35);
+
+    form.setLoraStrength('lora2', '0.8');
+    form.setLoraEnabled(lora, true);
+    expect(store.form()['lora2']).toBe(0.8);
+  });
+
+  it('removes a LoRA strength on empty input and ignores NaN', () => {
+    const { store, fixture } = render(ParamForm);
+    const form = fixture.componentInstance;
+    store.form.set({ prompt: 'p', lora2: 1.0 });
+
+    form.setLoraStrength('lora2', '');
+    expect('lora2' in store.form()).toBe(false);
+
+    form.setLoraStrength('lora2', 'abc');
+    expect('lora2' in store.form()).toBe(false);
   });
 
   it('helpers isOn and extraOption', () => {
@@ -479,7 +501,8 @@ describe('ParamForm', () => {
   it('summarises every group', () => {
     const { store, fixture } = render(ParamForm);
     const form = fixture.componentInstance;
-    store.form.set(structuredClone(DEFAULT_REQUEST));
+    store.loras.set(LORAS);
+    store.form.set(store.defaultForm());
     expect(form.groupSummary('model')).toBe('flux-lora · realistic · 1024×1024');
     expect(form.groupSummary('sampling')).toBe('32 steps · g 1.8 · Seed random · dpmpp_2m · beta');
     expect(form.groupSummary('fixes')).toBe('Hires 1.5× · Face · Hand');
@@ -501,6 +524,7 @@ describe('ParamForm', () => {
 
   it('renders closed groups with summaries and selects for sampler/scheduler', () => {
     const { store, fixture, el, one } = render(ParamForm);
+    store.loras.set(LORAS);
     fixture.detectChanges();
     const groups = Array.from(el.querySelectorAll<HTMLDetailsElement>('details.group'));
     expect(groups.map((g) => g.dataset['testid'])).toEqual([
@@ -543,8 +567,39 @@ describe('ParamForm', () => {
     expect((one('f-preset') as HTMLSelectElement).value).toBe('');
   });
 
+  it('renders one control per configured LoRA entry and shows a hint without entries', () => {
+    const { store, fixture, all, one } = render(ParamForm);
+    fixture.detectChanges();
+    expect(all('group-lora')).toHaveLength(1);
+    expect(one('no-loras').textContent).toContain('No LoRAs configured');
+    expect(all('f-lora2-on')).toHaveLength(0);
+
+    store.loras.set([
+      { key: 'lora_detail', label: 'Detail', default: 0.5, toggle: false },
+      { key: 'lora_style', label: 'Style', default: 1, toggle: true },
+    ]);
+    store.form.set(store.defaultForm());
+    fixture.detectChanges();
+
+    expect(one('no-loras')).toBeUndefined();
+    const detail = one('f-lora_detail') as HTMLInputElement;
+    expect(detail.value).toBe('0.5');
+    expect(detail.closest('label')!.textContent).toContain('Detail');
+
+    const styleOn = one('f-lora_style-on') as HTMLInputElement;
+    expect(styleOn.checked).toBe(true);
+    expect((one('f-lora_style') as HTMLInputElement).value).toBe('1');
+
+    styleOn.click();
+    fixture.detectChanges();
+    expect(store.form()['lora_style']).toBe(false);
+    expect(one('f-lora_style')).toBeUndefined();
+  });
+
   it('shows sub-fields only when the switch is on', () => {
     const { store, fixture, one } = render(ParamForm);
+    store.loras.set(LORAS);
+    store.form.set(store.defaultForm());
     fixture.detectChanges();
     expect(one('f-hires-scale')).toBeTruthy();
     expect(one('f-lora2')).toBeTruthy();

@@ -57,11 +57,13 @@ export class App implements OnInit {
   protected readonly label = projectLabel;
 
   /**
-   * Call `store.loadProjects()` and `store.refreshJobs()` once (do not await), then
+   * Call `store.loadConfig()` first (LoRA slots, #34 - the form defaults depend on it), then
+   * `store.loadProjects()` and `store.refreshJobs()` once (do not await), then
    * `const id = setInterval(() => store.refreshJobs(), POLL_MS)`;
    * `destroyRef.onDestroy(() => clearInterval(id))`.
    */
   ngOnInit(): void {
+    void this.store.loadConfig();
     void this.store.loadProjects();
     void this.store.refreshJobs();
     const id = setInterval(() => this.store.refreshJobs(), POLL_MS);
