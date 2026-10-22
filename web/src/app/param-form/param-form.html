@@ -248,19 +248,17 @@
               {{ lora.label }}
             </td>
             <td class="val">
-              <label>
-                <span hidden>{{ lora.label }}</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  [attr.data-testid]="'f-' + lora.key"
-                  [value]="store.form()[lora.key] ?? ''"
-                  (input)="setLoraStrength(lora.key, $any($event.target).value)"
-                  [disabled]="lora.toggle && !isOn(store.form()[lora.key])"
-                />
-              </label>
+              <input
+                type="number"
+                min="0"
+                max="2"
+                step="0.05"
+                [attr.data-testid]="'f-' + lora.key"
+                [attr.aria-label]="lora.label"
+                [value]="store.form()[lora.key] ?? ''"
+                (input)="setLoraStrength(lora.key, $any($event.target).value)"
+                [disabled]="lora.toggle && !isOn(store.form()[lora.key])"
+              />
             </td>
           </tr>
         }
