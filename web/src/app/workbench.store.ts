@@ -262,6 +262,39 @@ export class WorkbenchStore {
   }
 
   /**
+   * Delete image `n` of the selected project (#25). NO confirmation - Stefan decided
+   * against a dialog; the right-click + menu entry is the only gate.
+   *
+   * - No selected project: return, no HTTP call.
+   * - 1. `await firstValueFrom(api.deleteImage(project, n))`. On error: `error =
+   *      errorMessage(err)`, nothing else changes, return.
+   * - 2. `await loadProjects()` (refreshes `image_count` of the project list).
+   * - 3. Reload `images` (`listImages`), `images.set(list)`, `imagesVersion.update(v => v + 1)`.
+   *      On error: `error` set, return.
+   * - 4. Selection, compared with `selectedImage()` as it was BEFORE the delete:
+   *      - nothing selected: done (`settings`, `previousSettings`, `diff`, `form` and
+   *        `formBaseline` stay untouched).
+   *      - the deleted image was NOT the selected one: keep `selectedImage`, `settings` and
+   *        the form (`form`/`formBaseline`) untouched, but refresh the predecessor view with
+   *        `await showImage(selected)`, so `diff`/`previousSettings` refer to the NEW
+   *        predecessor (a deleted predecessor must not leave a stale diff). The form is NOT
+   *        reloaded - unrendered changes stay. If the selected image is no longer in `list`,
+   *        clear the selection like in the last bullet.
+   *      - the deleted image WAS the selected one: successor = the first number in `list`
+   *        greater than `n`, otherwise the last number in `list` lower than `n`.
+   *        * successor found: `if (await showImage(successor)) loadForm(settings()!.request)`
+   *          - deliberately WITHOUT `confirmDiscard()` (the delete was the user's consent).
+   *        * no successor (no image left): `selectedImage`, `settings` and `previousSettings`
+   *          -> null, `diff` -> []; `form` and `formBaseline` stay untouched (the user may
+   *          want to render the same settings again).
+   * - 5. On success `error` is null (step 2 already resets it).
+   */
+  async deleteImage(n: number): Promise<void> {
+    void n;
+    throw new Error('not implemented');
+  }
+
+  /**
    * User selects project `id` (click in the project list). If `!confirmDiscard()`: return
    * without any change. Otherwise `await loadProject(id)`.
    */

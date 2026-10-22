@@ -59,6 +59,14 @@ describe('ApiService', () => {
     http.expectOne({ method: 'PUT', url: '/api/projects/a%2Fb/images/1/comment' }).flush(null);
   });
 
+  it('deletes an image', () => {
+    api.deleteImage('20261007-a', 3).subscribe();
+    http.expectOne({ method: 'DELETE', url: '/api/projects/20261007-a/images/3' }).flush(null);
+
+    api.deleteImage('a/b', 1).subscribe();
+    http.expectOne({ method: 'DELETE', url: '/api/projects/a%2Fb/images/1' }).flush(null);
+  });
+
   it('talks to the queue', () => {
     api.listJobs().subscribe();
     http.expectOne({ method: 'GET', url: '/api/queue' }).flush([]);

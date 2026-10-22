@@ -168,6 +168,64 @@ describe('ThumbnailStrip', () => {
     expect(pending[0].textContent).toContain('running');
     expect(pending[1].textContent).toContain('queued');
   });
+
+  it('right click opens a delete menu that deletes without confirmation', async () => {
+    const { store, fixture, all, one } = render(ThumbnailStrip);
+    const del = vi.spyOn(store, 'deleteImage').mockResolvedValue();
+    store.selectedProject.set('20261007-x');
+    store.images.set([1, 2]);
+    store.selectedImage.set(1);
+    fixture.detectChanges();
+    expect(all('context-menu')).toHaveLength(0);
+
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+      clientY: 40,
+    });
+    all('thumb')[1].dispatchEvent(event);
+    fixture.detectChanges();
+
+    expect(event.defaultPrevented).toBe(true);
+    const menu = one('context-menu');
+    expect(menu.style.left).toBe('120px');
+    expect(menu.style.top).toBe('40px');
+    expect(menu.textContent).toContain('Delete image');
+    expect(store.selectedImage()).toBe(1); // a right click never changes the selection
+
+    one('context-delete').click();
+    await fixture.whenStable();
+    expect(del).toHaveBeenCalledWith(2);
+    fixture.detectChanges();
+    expect(all('context-menu')).toHaveLength(0);
+    expectNoSubmitButtons(fixture.nativeElement);
+  });
+
+  it('closes the delete menu with Esc and with a click outside', async () => {
+    const { store, fixture, all, one } = render(ThumbnailStrip);
+    store.selectedProject.set('20261007-x');
+    store.images.set([1]);
+    fixture.detectChanges();
+
+    const openMenu = () => {
+      all('thumb')[0].dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
+      );
+      fixture.detectChanges();
+      expect(all('context-menu')).toHaveLength(1);
+    };
+
+    openMenu();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    expect(all('context-menu')).toHaveLength(0);
+
+    openMenu();
+    one('context-backdrop').click();
+    fixture.detectChanges();
+    expect(all('context-menu')).toHaveLength(0);
+  });
 });
 
 describe('ImagePanel', () => {

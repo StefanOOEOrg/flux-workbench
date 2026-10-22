@@ -103,6 +103,16 @@ def create_app(
         viewer(store.image_path(project_id, n))
         return Response(status_code=204)
 
+    @app.delete("/api/projects/{project_id}/images/{n}", status_code=204)
+    def delete_image(project_id: str, n: int) -> Response:
+        """``store.delete_image(project_id, n)``; return ``Response(status_code=204)``.
+
+        Deletes the PNG and the settings file of image ``n`` (no renumbering, #25).
+        A missing image -> 404, an invalid project id or ``n < 1`` -> 400 (both come from
+        the exception handlers above, the route does not catch anything).
+        """
+        raise NotImplementedError
+
     @app.get("/api/queue")
     def list_jobs() -> list[dict[str, Any]]:
         """Return ``[asdict(job) for job in queue.list_jobs()]``."""

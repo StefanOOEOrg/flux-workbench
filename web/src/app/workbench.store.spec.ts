@@ -23,7 +23,9 @@ class FakeApi {
   opened: [string, number][] = [];
   submitted: [string, RenderRequest][] = [];
   comments: [string, number, string][] = [];
+  deleted: string[] = [];
   failComment = false;
+  failDelete = false;
 
   listProjects(): Observable<ProjectInfo[]> {
     this.calls.push('listProjects');
@@ -59,6 +61,20 @@ class FakeApi {
   }
   openImage(id: string, n: number): Observable<void> {
     this.opened.push([id, n]);
+    return of(undefined);
+  }
+  deleteImage(id: string, n: number): Observable<void> {
+    if (this.failDelete) {
+      return throwError(
+        () => new HttpErrorResponse({ status: 404, error: { detail: 'not found' } }),
+      );
+    }
+    this.deleted.push(`${id}/${n}`);
+    this.images[id] = (this.images[id] ?? []).filter((x) => x !== n);
+    delete this.settings[`${id}/${n}`];
+    this.projects = this.projects.map((p) =>
+      p.id === id ? { ...p, image_count: this.images[id].length } : p,
+    );
     return of(undefined);
   }
   imageUrl(id: string, n: number, v?: number): string {
@@ -475,6 +491,103 @@ describe('WorkbenchStore', () => {
       await store.saveComment('x');
       expect(store.error()).toBe('zu lang');
       expect(store.settings()?.comment).toBe('');
+    });
+  });
+
+  describe('deleteImage', () => {
+    /** Project with images 1, 2, 3 (selected: 3, the newest) and distinct settings. */
+    async function threeImages() {
+      const ctx = setup();
+      ctx.api.images[PID] = [1, 2, 3];
+      ctx.api.settings[`${PID}/1`] = s({ prompt: 'one', steps: 1 }, null);
+      ctx.api.settings[`${PID}/2`] = s({ prompt: 'two', steps: 2 }, null);
+      ctx.api.settings[`${PID}/3`] = s({ prompt: 'three', steps: 3 }, null);
+      await ctx.store.selectProject(PID);
+      return ctx;
+    }
+
+    it('deletes another image: selection, form and unrendered changes stay', async () => {
+      const { store, api } = await threeImages();
+      store.form.update((f) => ({ ...f, prompt: 'edited' }));
+      const asked: string[] = [];
+      store.confirmFn = (m) => {
+        asked.push(m);
+        return true;
+      };
+      const version = store.imagesVersion();
+
+      await store.deleteImage(1);
+
+      expect(api.deleted).toEqual([`${PID}/1`]);
+      expect(store.images()).toEqual([2, 3]);
+      expect(store.selectedImage()).toBe(3);
+      expect(store.form().prompt).toBe('edited');
+      expect(store.formDirty()).toBe(true);
+      expect(store.imagesVersion()).toBe(version + 1);
+      expect(store.projects()[0].image_count).toBe(2);
+      expect(asked).toEqual([]);
+      // predecessor of 3 is now 2, not the deleted image
+      expect(store.previousSettings()?.request).toEqual({ prompt: 'two', steps: 2 });
+      expect(store.diff()).toEqual([{ path: 'steps', kind: 'changed', before: 2, after: 3 }]);
+    });
+
+    it('selects the next image and loads its request when the selected one is deleted', async () => {
+      const { store } = await threeImages();
+      await store.selectImage(2);
+
+      await store.deleteImage(2);
+
+      expect(store.images()).toEqual([1, 3]);
+      expect(store.selectedImage()).toBe(3);
+      expect(store.form()).toEqual({ prompt: 'three', steps: 3 });
+      expect(store.formBaseline()).toEqual({ prompt: 'three', steps: 3 });
+    });
+
+    it('falls back to the previous image when the last one is deleted', async () => {
+      const { store } = await threeImages();
+
+      await store.deleteImage(3);
+
+      expect(store.images()).toEqual([1, 2]);
+      expect(store.selectedImage()).toBe(2);
+      expect(store.form()).toEqual({ prompt: 'two', steps: 2 });
+    });
+
+    it('clears the image column but keeps the form when the only image is deleted', async () => {
+      const ctx = setup();
+      ctx.api.images[PID] = [1];
+      ctx.api.settings[`${PID}/1`] = s({ prompt: 'only' }, null);
+      await ctx.store.selectProject(PID);
+      ctx.store.form.update((f) => ({ ...f, prompt: 'edited' }));
+
+      await ctx.store.deleteImage(1);
+
+      expect(ctx.store.images()).toEqual([]);
+      expect(ctx.store.selectedImage()).toBeNull();
+      expect(ctx.store.settings()).toBeNull();
+      expect(ctx.store.previousSettings()).toBeNull();
+      expect(ctx.store.diff()).toEqual([]);
+      expect(ctx.store.form().prompt).toBe('edited');
+    });
+
+    it('reports server errors and changes nothing', async () => {
+      const { store, api } = await threeImages();
+      api.failDelete = true;
+
+      await store.deleteImage(1);
+
+      expect(store.error()).toBe('not found');
+      expect(store.images()).toEqual([1, 2, 3]);
+      expect(store.selectedImage()).toBe(3);
+      expect(store.settings()?.request).toEqual({ prompt: 'three', steps: 3 });
+    });
+
+    it('does nothing without a selected project', async () => {
+      const { store, api } = setup();
+
+      await store.deleteImage(1);
+
+      expect(api.deleted).toEqual([]);
     });
   });
 });
