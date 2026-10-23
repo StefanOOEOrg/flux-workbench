@@ -1,17 +1,10 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
-import {
-  DEFAULT_REQUEST,
-  DiffEntry,
-  ImageSettings,
-  Job,
-  LoraEntry,
-  ProjectInfo,
-  RenderRequest,
-} from './models';
+import { ErrorState, AttemptResult } from './error-state';
+import { FormStore } from './form.store';
+import { DiffEntry, ImageSettings, Job, ProjectInfo, RenderRequest } from './models';
 import { diffSettings, effectiveOrRequest } from './settings-diff';
 import { WordSegment, diffWords } from './word-diff';
 
@@ -27,6 +20,8 @@ import { WordSegment, diffWords } from './word-diff';
 @Injectable({ providedIn: 'root' })
 export class WorkbenchStore {
   private readonly api = inject(ApiService);
+  private readonly errors = inject(ErrorState);
+  private readonly forms = inject(FormStore);
 
   readonly projects = signal<ProjectInfo[]>([]);
   /** Text of the project filter field (case-insensitive substring match on the id). */
@@ -46,18 +41,18 @@ export class WorkbenchStore {
    * with an empty list the parameter form shows no LoRA fields and `defaultForm()` is plain
    * `DEFAULT_REQUEST`.
    */
-  readonly loras = signal<LoraEntry[]>([]);
+  readonly loras = this.forms.loras;
   /** Current content of the parameter form. */
-  readonly form = signal<RenderRequest>(structuredClone(DEFAULT_REQUEST));
+  readonly form = this.forms.form;
   /**
    * Last "clean" form state: set together with `form` whenever the form is loaded from an image
    * or reset to the defaults, and to a copy of `form()` after a successful `submit()`.
    */
-  readonly formBaseline = signal<RenderRequest>(structuredClone(DEFAULT_REQUEST));
+  readonly formBaseline = this.forms.formBaseline;
   /** Injected for tests; asks before unrendered form changes are discarded. */
   confirmFn: (message: string) => boolean = (m) => window.confirm(m);
   readonly jobs = signal<Job[]>([]);
-  readonly error = signal<string | null>(null);
+  readonly error = this.errors.error;
   /** Incremented after every reload of `images`; used as cache buster for thumbnails. */
   readonly imagesVersion = signal(0);
 
@@ -134,14 +129,7 @@ export class WorkbenchStore {
    * `diffSettings(formBaseline() as Record, form() as Record).length > 0` (reuse the existing
    * settings diff; cast via `as unknown as Record<string, unknown>`).
    */
-  readonly formDirty = computed<boolean>(() => {
-    return (
-      diffSettings(
-        this.formBaseline() as unknown as Record<string, unknown>,
-        this.form() as unknown as Record<string, unknown>,
-      ).length > 0
-    );
-  });
+  readonly formDirty = this.forms.dirty;
 
   /**
    * `request[key]` of `s` as a string: a missing / non-string value counts as `''`.
@@ -199,12 +187,7 @@ export class WorkbenchStore {
    * `render_seconds` (they are not part of `request`).
    */
   private loadForm(request: Record<string, unknown>): void {
-    const form = structuredClone(request) as unknown as RenderRequest;
-    if (typeof form.prompt !== 'string') {
-      form.prompt = '';
-    }
-    this.form.set(form);
-    this.formBaseline.set(structuredClone(form));
+    this.forms.load(request);
   }
 
   /**
@@ -213,11 +196,7 @@ export class WorkbenchStore {
    * configured strengths. Never mutates `DEFAULT_REQUEST`.
    */
   defaultForm(): RenderRequest {
-    const form = structuredClone(DEFAULT_REQUEST);
-    for (const lora of this.loras()) {
-      form[lora.key] = lora.default;
-    }
-    return form;
+    return this.forms.defaultForm();
   }
 
   /**
@@ -240,8 +219,7 @@ export class WorkbenchStore {
     this.loras.set(config.loras);
     this.error.set(typeof config.warning === 'string' ? config.warning : null);
     if (this.selectedImage() === null) {
-      this.form.set(this.defaultForm());
-      this.formBaseline.set(this.defaultForm());
+      this.forms.reset();
     }
   }
 
@@ -294,9 +272,8 @@ export class WorkbenchStore {
         this.settings.set(null);
         this.images.set([]);
         this.diff.set([]);
-        this.form.set(this.defaultForm());
+        this.forms.reset();
         this.previousSettings.set(null);
-        this.formBaseline.set(this.defaultForm());
       }
       this.error.set(null);
     });
@@ -409,7 +386,7 @@ export class WorkbenchStore {
         this.settings.set(null);
         this.previousSettings.set(null);
         this.diff.set([]);
-        this.loadForm(this.defaultForm());
+        this.forms.reset();
         this.error.set(null);
         return;
       }
@@ -660,38 +637,8 @@ export class WorkbenchStore {
    *   from failure.
    */
   private async attempt<T>(action: () => Promise<T>): Promise<AttemptResult<T>> {
-    try {
-      return { ok: true, value: await action() };
-    } catch (err) {
-      this.error.set(errorMessage(err));
-      return { ok: false };
-    }
+    return this.errors.attempt(action);
   }
 }
 
-/** Result of {@link WorkbenchStore}'s `attempt()`: the value, or "failed, `error` is set". */
-type AttemptResult<T> = { ok: true; value: T } | { ok: false };
-
-/**
- * Human-readable message for any error.
- * - `HttpErrorResponse` with `error.detail` string (FastAPI) -> that string.
- * - `HttpErrorResponse` with `status === 0` -> `'Server not reachable'`.
- * - other `HttpErrorResponse` -> `` `HTTP ${status}: ${statusText}` ``.
- * - `Error` -> `message`; anything else -> `String(err)`.
- */
-export function errorMessage(err: unknown): string {
-  if (err instanceof HttpErrorResponse) {
-    const detail = (err.error as { detail?: unknown } | null | undefined)?.detail;
-    if (typeof detail === 'string') {
-      return detail;
-    }
-    if (err.status === 0) {
-      return 'Server not reachable';
-    }
-    return `HTTP ${err.status}: ${err.statusText}`;
-  }
-  if (err instanceof Error) {
-    return err.message;
-  }
-  return String(err);
-}
+export { errorMessage } from './error-message';

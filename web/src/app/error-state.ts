@@ -1,5 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 
+import { errorMessage } from './error-message';
+
 /**
  * The app-wide error message plus the single HTTP error funnel (#47).
  *
@@ -26,8 +28,12 @@ export class ErrorState {
    * Implementation needs `errorMessage` from `./error-message`.
    */
   async attempt<T>(action: () => Promise<T>): Promise<AttemptResult<T>> {
-    void action;
-    throw new Error('not implemented yet');
+    try {
+      return { ok: true, value: await action() };
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return { ok: false };
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 
 import { DEFAULT_REQUEST, LoraEntry, RenderRequest } from './models';
+import { diffSettings } from './settings-diff';
 
 /**
  * Parameter form state plus the LoRA slots (#47): the part of `WorkbenchStore` that has no
@@ -34,7 +35,12 @@ export class FormStore {
    * settings diff; cast via `as unknown as Record<string, unknown>`).
    */
   readonly dirty = computed<boolean>(() => {
-    throw new Error('not implemented yet');
+    return (
+      diffSettings(
+        this.formBaseline() as unknown as Record<string, unknown>,
+        this.form() as unknown as Record<string, unknown>,
+      ).length > 0
+    );
   });
 
   /**
@@ -43,7 +49,11 @@ export class FormStore {
    * configured strengths. Never mutates `DEFAULT_REQUEST`.
    */
   defaultForm(): RenderRequest {
-    throw new Error('not implemented yet');
+    const form = structuredClone(DEFAULT_REQUEST);
+    for (const lora of this.loras()) {
+      form[lora.key] = lora.default;
+    }
+    return form;
   }
 
   /**
@@ -53,8 +63,12 @@ export class FormStore {
    * `render_seconds` (they are not part of `request`).
    */
   load(request: Record<string, unknown>): void {
-    void request;
-    throw new Error('not implemented yet');
+    const form = structuredClone(request) as unknown as RenderRequest;
+    if (typeof form.prompt !== 'string') {
+      form.prompt = '';
+    }
+    this.form.set(form);
+    this.formBaseline.set(structuredClone(form));
   }
 
   /**
@@ -63,6 +77,7 @@ export class FormStore {
    * no image is selected.
    */
   reset(): void {
-    throw new Error('not implemented yet');
+    this.form.set(this.defaultForm());
+    this.formBaseline.set(this.defaultForm());
   }
 }
