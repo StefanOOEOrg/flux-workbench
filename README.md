@@ -32,6 +32,11 @@ Then open <http://127.0.0.1:8080>.
 | `FLUX_LORA_CONFIG` | `./loras.json` |
 | `FLUX_PORT` | `8080` |
 
+> The bridge default `http://127.0.0.1:8002/generate` only fits a bridge running on the same
+> machine. For the GX10 set it explicitly:
+> `FLUX_BRIDGE_URL=http://192.168.178.87:8002/generate uv run flux-workbench`.
+> The app prints the bridge it uses on startup, and a render error names the URL that failed.
+
 ### LoRA slots
 
 The parameter form shows one control per LoRA slot listed in `loras.json` (at most 5 entries).
