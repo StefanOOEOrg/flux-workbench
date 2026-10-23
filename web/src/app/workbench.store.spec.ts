@@ -797,6 +797,19 @@ describe('WorkbenchStore', () => {
       expect(store.error()).toBe('boom');
       expect(api.opened).toEqual([]);
     });
+
+    it('does not report an error when the predecessor settings are missing', async () => {
+      const { store, api } = setup();
+      api.images[PID] = [1, 2];
+      api.settings[`${PID}/2`] = s({ prompt: 'b' }, null);
+
+      await store.selectProject(PID);
+
+      expect(store.selectedImage()).toBe(2);
+      expect(store.previousSettings()).toBeNull();
+      expect(store.diff()).toEqual([]);
+      expect(store.error()).toBeNull();
+    });
   });
 
   describe('loadConfig', () => {
