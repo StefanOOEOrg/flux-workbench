@@ -329,26 +329,25 @@ export class WorkbenchStore {
    *          -> null, `diff` -> []; `form` and `formBaseline` stay untouched (the user may
    *          want to render the same settings again).
    * - 5. On success `error` is null (step 2 already resets it).
+   *
+   * Implementation (#47): both HTTP calls run through `attempt()` (`deleteImage`, then
+   * `listImages`); if either reports failure, return exactly at that point as described above.
    */
   async deleteImage(n: number): Promise<void> {
     const project = this.selectedProject();
     if (project === null) {
       return;
     }
-    try {
-      await firstValueFrom(this.api.deleteImage(project, n));
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const deleted = await this.attempt(() => firstValueFrom(this.api.deleteImage(project, n)));
+    if (!deleted.ok) {
       return;
     }
     await this.loadProjects();
-    let list: number[];
-    try {
-      list = await firstValueFrom(this.api.listImages(project));
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const listed = await this.attempt(() => firstValueFrom(this.api.listImages(project)));
+    if (!listed.ok) {
       return;
     }
+    const list = listed.value;
     this.images.set(list);
     this.imagesVersion.update((v) => v + 1);
 
@@ -396,9 +395,11 @@ export class WorkbenchStore {
    * - Otherwise: `if (await showImage(last image)) loadForm(settings()!.request)`, so the form
    *   continues from the newest render.
    * Errors like everywhere else.
+   *
+   * Implementation (#47): the whole body runs inside one `attempt()` call.
    */
   private async loadProject(id: string): Promise<void> {
-    try {
+    await this.attempt(async () => {
       this.selectedProject.set(id);
       const list = await firstValueFrom(this.api.listImages(id));
       this.images.set(list);
@@ -415,9 +416,7 @@ export class WorkbenchStore {
       if (await this.showImage(list[list.length - 1])) {
         this.loadForm(this.settings()!.request);
       }
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -449,19 +448,21 @@ export class WorkbenchStore {
    *   effectiveOrRequest(current))` WITHOUT the entries with path `prompt` or `negative`;
    * - load fails (e.g. 404): `previousSettings = null`, `diff = []`, no error, still `true`.
    * If the settings of `n` cannot be loaded: `error` set, return `false`, nothing else changes.
+   *
+   * Implementation (#47): loading the settings of `n` runs through `attempt()` (failure ->
+   * `false`). The predecessor load keeps its own bare `catch {}`: a missing predecessor is NOT
+   * an error (no `error`, still `true`) and must not be funnelled through `attempt()`.
    */
   private async showImage(n: number): Promise<boolean> {
     const project = this.selectedProject();
     if (project === null) {
       return false;
     }
-    let settings: ImageSettings;
-    try {
-      settings = await firstValueFrom(this.api.getSettings(project, n));
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const loaded = await this.attempt(() => firstValueFrom(this.api.getSettings(project, n)));
+    if (!loaded.ok) {
       return false;
     }
+    const settings = loaded.value;
     this.settings.set(settings);
     this.selectedImage.set(n);
     this.error.set(null);
@@ -563,10 +564,13 @@ export class WorkbenchStore {
    * form, form and baseline stay untouched.
    * Errors: set `error` like everywhere else. EXCEPTION to the class rule: a successful poll must
    * NOT reset `error` to null (it runs every 2 s and would hide every message within 2 s).
+   *
+   * Implementation (#47): the whole body runs inside one `attempt()` call; nothing in here calls
+   * `error.set(null)`.
    */
   async refreshJobs(): Promise<void> {
-    const project = this.selectedProject();
-    try {
+    await this.attempt(async () => {
+      const project = this.selectedProject();
       const jobs = await firstValueFrom(this.api.listJobs());
       const oldJobs = this.jobs();
       this.jobs.set(jobs);
@@ -595,9 +599,7 @@ export class WorkbenchStore {
           break;
         }
       }
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
