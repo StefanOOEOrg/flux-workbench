@@ -1,26 +1,80 @@
 # flux-workbench
 
-Local project manager for FLUX renderings: create projects, keep renderings together with their
-parameters, see what changed from the previous image, and send new render jobs through a queue
-to the render bridge.
+![Flux Workbench: projects, image column with the diff to the previous image, parameter form and queue](docs/screenshot.png)
+
+Local workbench for FLUX renderings. Everything lives in plain folders on disk: create a project,
+send render jobs through a queue to the render bridge, and compare each new image with the previous
+one to see what changed in the prompt and in the parameters.
 
 - `server/` – Python (FastAPI): files under `projects/`, render queue, bridge client, `open` viewer
 - `web/` – Angular app (served by the server under `/`)
-- `projects/YYYYMMDD-<name>/<n>.png` + `<n>.json` (`{"request": …, "effective": …}`)
+- `projects/YYYYMMDD-<name>/<n>.png` + `<n>.json` (`{"request": …, "effective": …, "render_seconds": …}`)
+
+## What it does
+
+- **Projects on disk.** One folder per project; one PNG plus one JSON file per image. No database —
+  backing up or removing a project is moving or deleting its folder.
+- **Render queue.** In-memory FIFO with one worker: `queued` → `running` → `done`/`error`,
+  cancellable while queued, `Clear` removes the finished history. A restart empties the queue (by
+  design); the images stay.
+- **Parameter form.** Model & size, sampling, hires & fixes and a LoRA group built from
+  `loras.json` (see below). `Defaults` restores the configured defaults; unsaved changes are
+  guarded before they are thrown away.
+- **Image column.** The selected image with seed and render time, the comparison to the previous
+  image (next section), a free-text comment per image, `Use seed` to adopt a seed into the form,
+  double-click to open the image in the system viewer, right-click to delete an image (no undo).
+- **Queue panel.** Pending jobs of the project appear as placeholder tiles in the strip, the header
+  shows running/queued counters, and the panel lists all queued/running/failed jobs plus the last
+  five finished ones.
+
+## How the image comparison works
+
+Every render writes two files into the project folder: `<n>.png` and `<n>.json`. The JSON holds
+
+```json
+{
+  "request":   { "prompt": "…", "steps": 35, "hires": { "scale": 1.5 } },
+  "effective": { "prompt": "…", "steps": 40, "hires": { "scale": 1.5 } },
+  "comment": "…",
+  "render_seconds": 2.6
+}
+```
+
+- `request` is what the workbench sent, `effective` what the bridge reports it actually used
+  (`null` if the bridge does not report it), `render_seconds` the wall time of that render.
+- The reference for the comparison is **the previous image in the strip**: the next lower number
+  that exists in this project. Gaps are allowed — after deleting image 6, image 7 is compared with
+  image 5. The first image has no predecessor.
+- The column shows three separate diffs, all computed in the browser from those JSON files:
+  - **Prompt** – word-level diff between predecessor and selected image (`added` / `removed`
+    words, unchanged words stay neutral).
+  - **Negative prompt** – the same for the `negative` key.
+  - **Parameters** – one chip per changed path (`face_fix.steps  25 → 20`), found by walking both
+    settings objects recursively and sorted by path. `prompt` and `negative` are left out here
+    because they have their own two views.
+- Values come from `effective` when present, otherwise from `request`, so the comparison shows what
+  the renderer really did rather than only what was asked for.
+- Without a predecessor the column says `First image` and shows no change list; identical settings
+  show `No changes from the previous image`.
+
+Because the comparison is derived from the files, it survives restarts and needs no server state:
+the workbench only stores what was rendered. Old hand-written `<n>.json` files without `request` /
+`effective` keys are treated as a plain request, so existing projects keep working.
 
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/) (brings its own Python)
 - Node.js ≥ 22 + npm
 
-## Run
+## Quick start
 
 ```bash
+cp .env.example .env          # set FLUX_BRIDGE_URL for the GX10 (see below)
 cd web && npm ci && npm run build && cd ..
 uv run flux-workbench
 ```
 
-Then open <http://127.0.0.1:8080>.
+Open <http://127.0.0.1:8080>. The start line prints the bridge URL and the env file in use.
 
 ## Configuration (environment variables)
 
@@ -50,7 +104,7 @@ file. Rules: `KEY=VALUE` lines, `#` comments, optional `export `, values may be 
 > The app prints the bridge and the env file it uses on startup, and a render error names the
 > URL that failed.
 
-### LoRA slots
+## LoRA slots
 
 The parameter form shows one control per LoRA slot listed in `loras.json` (at most 5 entries).
 Which LoRA file a slot loads is decided by the render bridge on the GX10, so the `key` must be a
@@ -68,6 +122,23 @@ shows a warning.
 
 ```bash
 uv run pytest && uv run ruff check server && uv run ruff format --check server
-cd web && npx ng test --watch=false && npx ng lint && npx prettier --check "src/**/*.{ts,html,css}"
-# UI with live reload: start the server, then in web/: npx ng serve  (proxy /api -> :8080)
+cd web && node node_modules/@angular/cli/bin/ng.js test --watch=false
+# gates: node node_modules/eslint/bin/eslint.js src
+#        node node_modules/prettier/bin/prettier.cjs --check "src/**/*.{ts,html,css}"
+#        node node_modules/typescript/bin/tsc -p tsconfig.app.json --noEmit
+#        node node_modules/typescript/bin/tsc -p tsconfig.spec.json --noEmit
+# UI with live reload: start the server, then in web/: node node_modules/@angular/cli/bin/ng.js serve
+```
+
+The server serves the built app from `web/dist/web/browser`; `ng serve` uses `proxy.conf.json` to
+reach `/api` on port 8080 while developing.
+
+## Repository layout
+
+```
+server/flux_workbench/   FastAPI app, project store, render queue, bridge client, .env loader
+server/tests/            pytest suite (fake renderer, tmp dirs)
+web/src/app/             Angular components, stores and services; specs next to them
+docs/                    screenshot and the original UI mockup
+loras.example.json       template for the per-machine LoRA slots
 ```
