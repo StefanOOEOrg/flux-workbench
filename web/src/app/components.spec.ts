@@ -339,7 +339,9 @@ describe('ImagePanel', () => {
     expect(el.textContent).toContain('Image 5');
     expect(el.textContent).toContain('Seed 482913');
     expect(one('render-time').textContent).toContain('2:41 min');
-    expect(el.textContent).toContain('Changes from image 4');
+    expect(el.textContent).toContain('Parameter changes from image 4');
+    expect(el.textContent).toContain('Prompt changes from image 4');
+    expect(el.textContent).toContain('Negative prompt changes from image 4');
     expect(fixture.componentInstance.previous()).toBe(4);
 
     const chips = all('diff-entry');
@@ -440,7 +442,15 @@ describe('ImagePanel', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.previous()).toBeNull();
     expect(el.textContent).toContain('First image');
-    expect(el.textContent).not.toContain('Changes from image');
+    expect(el.textContent!.toLowerCase()).not.toContain('changes from image');
+  });
+
+  it('labels the comment section in English (#57)', () => {
+    const { el, fixture } = withImage();
+    fixture.detectChanges();
+
+    expect(el.textContent).toContain('Comment');
+    expect(el.textContent).not.toContain('Kommentar');
   });
 
   it('edits and saves the comment on blur', async () => {
@@ -453,7 +463,7 @@ describe('ImagePanel', () => {
     area.value = 'heller machen';
     area.dispatchEvent(new Event('input'));
     fixture.detectChanges();
-    expect(one('comment-state').textContent!.trim()).toBe('· ungespeichert');
+    expect(one('comment-state').textContent!.trim()).toBe('· unsaved');
 
     area.dispatchEvent(new Event('blur'));
     await fixture.whenStable();

@@ -17,11 +17,13 @@ import { WorkbenchStore } from '../workbench.store';
  *   title="Click for a large view" (click)="openLightbox()">`.
  *   CSS: `display: block; max-width: 100%; max-height: 160px; object-fit: contain;
  *   border-radius: 8px; cursor: zoom-in; margin: 10px 0;`.
- * - Before the diff chips: `<h2>Prompt</h2>` + `<p data-testid="prompt-diff" class="words">`
+ * - Before the diff chips: `<h2>Prompt</h2>` - and `<h2>Prompt changes from image {{ previous() }}</h2>`
+ *   when `previous()` is not null (#57) - plus `<p data-testid="prompt-diff" class="words">`
  *   with one `<span [class]="seg.kind">{{ seg.text }}</span>` per segment of
  *   `store.promptDiff()` (track `$index`), separated by a single space (put `{{ ' ' }}` between
  *   the spans or use CSS `gap` - the test reads `textContent` of each span only). Then the same
- *   for "Negative Prompt" with `data-testid="negative-diff"` and `store.negativeDiff()`; if that
+ *   for `Negative Prompt` (`Negative prompt changes from image {{ previous() }}` with a
+ *   predecessor, #57) with `data-testid="negative-diff"` and `store.negativeDiff()`; if that
  *   list is empty show `<p class="hint" data-testid="negative-diff">empty</p>` instead.
  *   CSS: `.words { font-family: var(--mono); font-size: 12px; line-height: 1.6; white-space:
  *   normal; }` `.added { color: var(--add); }` `.removed { color: var(--rem);
@@ -44,8 +46,8 @@ import { WorkbenchStore } from '../workbench.store';
  *   `<span class="hint">· Seed {{ seed() }}</span>`; on the right
  *   `<button type="button" data-testid="adopt-seed" class="ghost">Use seed</button>` ->
  *   `store.adoptSeed()` (disabled when `seed()` is null).
- * - `<h2>Changes from image {{ previous() }}</h2>` (only if `previous()` is not null) and
- *   `<section data-testid="diff">`: if `store.diff()` is empty show
+ * - `<h2>Parameter changes from image {{ previous() }}</h2>` (only if `previous()` is not null, #57)
+ *   and `<section data-testid="diff">`: if `store.diff()` is empty show
  *   `<p class="hint">First image</p>` when `previous()` is null, else
  *   `<p class="hint">No changes from the previous image</p>`. Otherwise one chip per entry:
  *   `<div data-testid="diff-entry" [class]="'chip ' + entry.kind" [title]="formatDiff(entry)">`
@@ -139,8 +141,9 @@ export class ImagePanel {
   });
 
   /**
-   * Text for `comment-state`: `'· ungespeichert'` while `commentDirty()`; otherwise
+   * Text for `comment-state`: `'· unsaved'` while `commentDirty()`; otherwise
    * `'· saved'` if the stored comment (`store.settings()?.comment`) is non-empty, else `''`.
+   * Both labels are English (#57) - the template heading is `Comment`.
    */
   readonly commentState = computed<string>(() => {
     if (this.commentDirty()) {
