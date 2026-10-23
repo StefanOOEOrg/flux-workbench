@@ -11,6 +11,7 @@
         title="Double-click opens the image"
         (click)="store.selectImage(n)"
         (keydown.enter)="store.selectImage(n)"
+        (keydown)="onThumbKeydown(n, $event)"
         (dblclick)="store.openImage(n)"
         (contextmenu)="openMenu(n, $event)"
       >
@@ -31,12 +32,26 @@
     <div
       data-testid="context-backdrop"
       class="backdrop"
+      aria-hidden="true"
       tabindex="0"
       (click)="closeMenu()"
       (keydown.enter)="closeMenu()"
     ></div>
-    <div data-testid="context-menu" class="menu" [style.left.px]="m.x" [style.top.px]="m.y">
-      <button type="button" data-testid="context-delete" class="danger" (click)="remove(m.n)">
+    <div
+      data-testid="context-menu"
+      class="menu"
+      role="menu"
+      [style.left.px]="m.x"
+      [style.top.px]="m.y"
+    >
+      <button
+        #menuItem
+        type="button"
+        role="menuitem"
+        data-testid="context-delete"
+        class="danger"
+        (click)="remove(m.n)"
+      >
         Delete image
       </button>
     </div>
