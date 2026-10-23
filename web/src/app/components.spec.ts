@@ -226,6 +226,84 @@ describe('ThumbnailStrip', () => {
     fixture.detectChanges();
     expect(all('context-menu')).toHaveLength(0);
   });
+
+  it('opens the menu from the keyboard and focuses the delete item (#47)', async () => {
+    const { store, fixture, all, one } = render(ThumbnailStrip);
+    store.selectedProject.set('20261007-x');
+    store.images.set([1]);
+    fixture.detectChanges();
+
+    const thumb = all('thumb')[0] as HTMLElement;
+    thumb.getBoundingClientRect = () =>
+      ({
+        left: 100,
+        top: 50,
+        width: 120,
+        height: 120,
+        right: 220,
+        bottom: 170,
+        x: 100,
+        y: 50,
+      }) as DOMRect;
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'F10',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    thumb.dispatchEvent(event);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(event.defaultPrevented).toBe(true);
+    const menu = one('context-menu');
+    expect(menu.style.left).toBe('108px');
+    expect(menu.style.top).toBe('58px');
+    expect(document.activeElement).toBe(one('context-delete'));
+    expect(store.selectedImage()).toBeNull(); // opening the menu never selects
+  });
+
+  it('returns focus to the thumbnail when the menu closes (#47)', async () => {
+    const { store, fixture, all, one } = render(ThumbnailStrip);
+    store.selectedProject.set('20261007-x');
+    store.images.set([1]);
+    fixture.detectChanges();
+
+    const thumb = all('thumb')[0] as HTMLElement;
+    thumb.focus();
+    thumb.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ContextMenu', bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(one('context-delete'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(all('context-menu')).toHaveLength(0);
+    expect(document.activeElement).toBe(thumb);
+  });
+
+  it('marks the menu and its backdrop up for assistive tech (#47)', () => {
+    const { store, fixture, all, one } = render(ThumbnailStrip);
+    store.selectedProject.set('20261007-x');
+    store.images.set([1]);
+    fixture.detectChanges();
+
+    all('thumb')[0].dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 }),
+    );
+    fixture.detectChanges();
+
+    expect(one('context-backdrop').getAttribute('aria-hidden')).toBe('true');
+    expect(one('context-menu').getAttribute('role')).toBe('menu');
+    expect(one('context-delete').getAttribute('role')).toBe('menuitem');
+  });
 });
 
 describe('ImagePanel', () => {
