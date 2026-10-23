@@ -71,7 +71,9 @@ import { WorkbenchStore } from '../workbench.store';
  *   moves focus back to `trigger` when it still exists (`isConnected`), so Esc and a click on the
  *   backdrop both land on the thumbnail again. `remove(n)` closes first (that is allowed to lose
  *   focus when the deleted thumbnail disappears).
- * - A11y markup: the backdrop gets `aria-hidden="true"`, the menu `role="menu"` and the delete
+ * - A11y markup: the backdrop gets `aria-hidden="true"` and must NOT be focusable (no
+ *   `tabindex`, no `keydown.enter` - Esc and a click close the menu; an `aria-hidden` element in
+ *   the tab order is an axe `aria-hidden-focus` violation), the menu `role="menu"` and the delete
  *   button `role="menuitem"` (plus `#menuItem` for the `viewChild`); test ids stay unchanged.
  */
 @Component({

@@ -301,6 +301,7 @@ describe('ThumbnailStrip', () => {
     fixture.detectChanges();
 
     expect(one('context-backdrop').getAttribute('aria-hidden')).toBe('true');
+    expect(one('context-backdrop').hasAttribute('tabindex')).toBe(false);
     expect(one('context-menu').getAttribute('role')).toBe('menu');
     expect(one('context-delete').getAttribute('role')).toBe('menuitem');
   });
