@@ -810,6 +810,20 @@ describe('WorkbenchStore', () => {
       expect(store.diff()).toEqual([]);
       expect(store.error()).toBeNull();
     });
+
+    it('keeps form and baseline as separate objects when an image is loaded', async () => {
+      const { store, api } = setup();
+      api.images[PID] = [1];
+      api.settings[`${PID}/1`] = s({ prompt: 'a', steps: 4 }, null);
+
+      await store.selectProject(PID);
+
+      expect(store.form()).toEqual({ prompt: 'a', steps: 4 });
+      expect(store.formBaseline()).toEqual(store.form());
+      expect(store.formBaseline()).not.toBe(store.form());
+      store.form.update((f) => ({ ...f, steps: 5 }));
+      expect(store.formDirty()).toBe(true);
+    });
   });
 
   describe('loadConfig', () => {
