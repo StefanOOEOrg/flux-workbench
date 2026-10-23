@@ -24,6 +24,17 @@ Then open <http://127.0.0.1:8080>.
 
 ## Configuration (environment variables)
 
+Variables can be set in the shell or in a `.env` file in the repo root (gitignored). Copy the
+template once and adjust it:
+
+```bash
+cp .env.example .env
+```
+
+The file is read **once at startup**, before the defaults below are applied. Precedence:
+process environment > `.env` > default. `FLUX_ENV_FILE=/path/to/file` points the app at another
+file. Rules: `KEY=VALUE` lines, `#` comments, optional `export `, values may be quoted.
+
 | Variable | Default |
 |---|---|
 | `FLUX_BRIDGE_URL` | `http://127.0.0.1:8002/generate` |
@@ -31,11 +42,13 @@ Then open <http://127.0.0.1:8080>.
 | `FLUX_PROJECTS_DIR` | `./projects` |
 | `FLUX_LORA_CONFIG` | `./loras.json` |
 | `FLUX_PORT` | `8080` |
+| `FLUX_HOST` | `127.0.0.1` |
+| `FLUX_ENV_FILE` | `./.env` |
 
 > The bridge default `http://127.0.0.1:8002/generate` only fits a bridge running on the same
-> machine. For the GX10 set it explicitly:
-> `FLUX_BRIDGE_URL=http://192.168.178.87:8002/generate uv run flux-workbench`.
-> The app prints the bridge it uses on startup, and a render error names the URL that failed.
+> machine. For the GX10 put `FLUX_BRIDGE_URL=http://192.168.178.87:8002/generate` into `.env`.
+> The app prints the bridge and the env file it uses on startup, and a render error names the
+> URL that failed.
 
 ### LoRA slots
 
