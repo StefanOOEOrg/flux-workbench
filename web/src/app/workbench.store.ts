@@ -232,13 +232,11 @@ export class WorkbenchStore {
    *   touched.
    */
   async loadConfig(): Promise<void> {
-    let config;
-    try {
-      config = await firstValueFrom(this.api.getConfig());
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const result = await this.attempt(() => firstValueFrom(this.api.getConfig()));
+    if (!result.ok) {
       return;
     }
+    const config = result.value;
     this.loras.set(config.loras);
     this.error.set(typeof config.warning === 'string' ? config.warning : null);
     if (this.selectedImage() === null) {
@@ -249,12 +247,10 @@ export class WorkbenchStore {
 
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
-    try {
+    await this.attempt(async () => {
       this.projects.set(await firstValueFrom(this.api.listProjects()));
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -272,14 +268,12 @@ export class WorkbenchStore {
     if (!this.confirmDiscard()) {
       return;
     }
-    try {
+    await this.attempt(async () => {
       const { id } = await firstValueFrom(this.api.createProject(name));
       await this.loadProjects();
       await this.loadProject(id);
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -290,7 +284,7 @@ export class WorkbenchStore {
    * was already confirmed).
    */
   async deleteProject(id: string): Promise<void> {
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.deleteProject(id));
       const wasSelected = this.selectedProject() === id;
       await this.loadProjects();
@@ -305,9 +299,7 @@ export class WorkbenchStore {
         this.formBaseline.set(this.defaultForm());
       }
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -525,25 +517,21 @@ export class WorkbenchStore {
       this.error.set('Prompt fehlt');
       return;
     }
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.submitJob(project, this.form()));
       this.error.set(null);
       this.formBaseline.set(structuredClone(this.form()));
       await this.refreshJobs();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /** Cancel a queued job, then `refreshJobs()`. */
   async cancelJob(jobId: string): Promise<void> {
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.cancelJob(jobId));
       this.error.set(null);
       await this.refreshJobs();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -557,13 +545,11 @@ export class WorkbenchStore {
    * - Selection, settings, form and the project list are not touched.
    */
   async clearQueue(): Promise<void> {
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.clearQueue());
       this.error.set(null);
       await this.refreshJobs();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -630,13 +616,11 @@ export class WorkbenchStore {
     if (comment === settings.comment) {
       return;
     }
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.saveComment(project, image, comment));
       this.settings.update((s) => (s === null ? s : { ...s, comment }));
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /** Open image `n` of the selected project in the system viewer (no-op without project). */
@@ -645,12 +629,10 @@ export class WorkbenchStore {
     if (project === null) {
       return;
     }
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.openImage(project, n));
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /** `api.imageUrl(selectedProject, n, imagesVersion())`; `''` without a selected project. */
@@ -676,8 +658,12 @@ export class WorkbenchStore {
    *   from failure.
    */
   private async attempt<T>(action: () => Promise<T>): Promise<AttemptResult<T>> {
-    void action; // the stub ignores it; the implementation calls it
-    throw new Error('attempt() is not implemented yet');
+    try {
+      return { ok: true, value: await action() };
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return { ok: false };
+    }
   }
 }
 
