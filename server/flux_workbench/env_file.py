@@ -1,5 +1,6 @@
 """Minimal `.env` reader (#52) - no extra dependency, the real environment always wins."""
 
+import os
 from pathlib import Path
 
 
@@ -19,4 +20,35 @@ def load_env_file(path: Path) -> list[str]:
     - The returned list holds the keys actually written to `os.environ`, in file order
       (keys that were skipped because they already existed are not part of it).
     """
-    raise NotImplementedError
+    applied: list[str] = []
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return applied
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        line = line.removeprefix("export ").strip()
+
+        key, separator, value = line.partition("=")
+        if not separator:
+            continue
+
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+
+        if key in os.environ:
+            continue  # the real environment wins over the file
+        os.environ[key] = value
+        applied.append(key)
+
+    return applied

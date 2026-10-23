@@ -3,14 +3,14 @@
 import os
 from pathlib import Path
 
+from .env_file import load_env_file
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# #52: read a `.env` before any constant below is computed, because all of them are built at
-# import time:
-#   from .env_file import load_env_file
-#   ENV_FILE = Path(os.environ.get("FLUX_ENV_FILE", REPO_ROOT / ".env"))
-#   load_env_file(ENV_FILE)   # process environment wins over the file
-# `ENV_FILE` is exported so `main()` can tell the user which file was used.
+# #52: the `.env` is read before any constant below is computed, because all of them are built at
+# import time. The process environment wins over the file.
+ENV_FILE = Path(os.environ.get("FLUX_ENV_FILE", REPO_ROOT / ".env"))
+load_env_file(ENV_FILE)
 
 #: Folder that contains one sub-folder per project (YYYYMMDD-<name>).
 PROJECTS_DIR = Path(os.environ.get("FLUX_PROJECTS_DIR", REPO_ROOT / "projects")).resolve()

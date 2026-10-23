@@ -196,7 +196,11 @@ def build_default_app() -> FastAPI:
 
 def main() -> None:
     """Entry point: ``uv run flux-workbench``."""
-    print(f"Flux Workbench: http://{config.HOST}:{config.PORT}  (Bridge: {config.BRIDGE_URL})")
+    env_file = config.ENV_FILE if config.ENV_FILE.exists() else "none"
+    print(
+        f"Flux Workbench: http://{config.HOST}:{config.PORT}  "
+        f"(Bridge: {config.BRIDGE_URL}, Env: {env_file})"
+    )
     uvicorn.run(build_default_app(), host=config.HOST, port=config.PORT)
 
 
