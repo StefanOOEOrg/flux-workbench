@@ -147,7 +147,7 @@ export class ImagePanel {
    */
   readonly commentState = computed<string>(() => {
     if (this.commentDirty()) {
-      return '· ungespeichert';
+      return '· unsaved';
     }
     return this.store.settings()?.comment ? '· saved' : '';
   });
