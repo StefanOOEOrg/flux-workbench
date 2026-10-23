@@ -2,7 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import {
   ApplicationConfig,
   EnvironmentProviders,
+  isDevMode,
   provideBrowserGlobalErrorListeners,
+  provideCheckNoChangesConfig,
 } from '@angular/core';
 
 /**
@@ -17,7 +19,9 @@ import {
  * Angular 20+), and keep it EMPTY in production builds - the check costs time and is a
  * development aid only.
  */
-export const DEV_ONLY_PROVIDERS: EnvironmentProviders[] = [];
+export const DEV_ONLY_PROVIDERS: EnvironmentProviders[] = isDevMode()
+  ? [provideCheckNoChangesConfig({ exhaustive: true, interval: 1000 })]
+  : [];
 
 export const appConfig: ApplicationConfig = {
   providers: [provideBrowserGlobalErrorListeners(), provideHttpClient(), ...DEV_ONLY_PROVIDERS],
