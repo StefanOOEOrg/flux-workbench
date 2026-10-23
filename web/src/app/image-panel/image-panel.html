@@ -33,7 +33,11 @@
     (keydown.enter)="openLightbox()"
   />
 
-  <h2>Prompt</h2>
+  @if (previous() !== null) {
+    <h2>Prompt changes from image {{ previous() }}</h2>
+  } @else {
+    <h2>Prompt</h2>
+  }
   <p data-testid="prompt-diff" class="words">
     @for (seg of store.promptDiff(); track $index) {
       <span [class]="seg.kind">{{ seg.text }}</span>
@@ -43,7 +47,11 @@
     }
   </p>
 
-  <h2>Negative Prompt</h2>
+  @if (previous() !== null) {
+    <h2>Negative prompt changes from image {{ previous() }}</h2>
+  } @else {
+    <h2>Negative Prompt</h2>
+  }
   @if (store.negativeDiff().length === 0) {
     <p class="hint" data-testid="negative-diff">empty</p>
   } @else {
@@ -58,7 +66,7 @@
   }
 
   @if (previous() !== null) {
-    <h2>Changes from image {{ previous() }}</h2>
+    <h2>Parameter changes from image {{ previous() }}</h2>
   }
   <section data-testid="diff" class="diff">
     @if (store.diff().length === 0) {
@@ -86,7 +94,7 @@
   </section>
 
   <h2>
-    Kommentar <span data-testid="comment-state">{{ commentState() }}</span>
+    Comment <span data-testid="comment-state">{{ commentState() }}</span>
   </h2>
   <textarea
     data-testid="comment"
