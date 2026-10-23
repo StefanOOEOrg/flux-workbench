@@ -1,12 +1,13 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
 import { ErrorState, AttemptResult } from './error-state';
 import { FormStore } from './form.store';
 import { ImagesStore } from './images.store';
-import { Job, RenderRequest } from './models';
+import { RenderRequest } from './models';
 import { ProjectsStore } from './projects.store';
+import { QueueStore } from './queue.store';
 
 /**
  * All UI state as signals plus the actions the components call.
@@ -24,6 +25,7 @@ export class WorkbenchStore {
   private readonly forms = inject(FormStore);
   private readonly projectsStore = inject(ProjectsStore);
   private readonly imagesStore = inject(ImagesStore);
+  private readonly queueStore = inject(QueueStore);
 
   readonly projects = this.projectsStore.projects;
   /** Text of the project filter field (case-insensitive substring match on the id). */
@@ -53,15 +55,13 @@ export class WorkbenchStore {
   readonly formBaseline = this.forms.formBaseline;
   /** Injected for tests; asks before unrendered form changes are discarded. */
   confirmFn: (message: string) => boolean = (m) => window.confirm(m);
-  readonly jobs = signal<Job[]>([]);
+  readonly jobs = this.queueStore.jobs;
   readonly error = this.errors.error;
   /** Incremented after every reload of `images`; used as cache buster for thumbnails. */
   readonly imagesVersion = this.imagesStore.imagesVersion;
 
   /** Jobs that are `queued` or `running`. */
-  readonly pendingJobs = computed(() =>
-    this.jobs().filter((j) => j.status === 'queued' || j.status === 'running'),
-  );
+  readonly pendingJobs = this.queueStore.pendingJobs;
 
   /**
    * `projects()` filtered by `projectFilter()`: keep entries whose `id` contains the trimmed
@@ -71,39 +71,23 @@ export class WorkbenchStore {
   readonly filteredProjects = this.projectsStore.filteredProjects;
 
   /** Number of `running` jobs (all projects) - for the status badge in the header. */
-  readonly runningCount = computed<number>(() => {
-    return this.jobs().filter((j) => j.status === 'running').length;
-  });
+  readonly runningCount = this.queueStore.runningCount;
 
   /** Number of `queued` jobs (all projects) - for the status badge in the header. */
-  readonly queuedCount = computed<number>(() => {
-    return this.jobs().filter((j) => j.status === 'queued').length;
-  });
+  readonly queuedCount = this.queueStore.queuedCount;
 
   /**
    * Pending jobs (`queued` or `running`) of the selected project, oldest first.
    * `[]` without a selected project. Used for the placeholder tiles in the thumbnail strip.
    */
-  readonly projectPendingJobs = computed<Job[]>(() => {
-    const project = this.selectedProject();
-    if (project === null) {
-      return [];
-    }
-    return this.jobs().filter(
-      (j) => j.project_id === project && (j.status === 'queued' || j.status === 'running'),
-    );
-  });
+  readonly projectPendingJobs = this.queueStore.projectPendingJobs;
 
   /**
    * Number the next render of the selected project will get, for the button
    * "Render · image N": `max(images()) + 1 + projectPendingJobs().length`; with no images
    * `1 + projectPendingJobs().length`. (Each pending job will take one number before it.)
    */
-  readonly nextImageNumber = computed<number>(() => {
-    const images = this.images();
-    const base = images.length === 0 ? 1 : Math.max(...images) + 1;
-    return base + this.projectPendingJobs().length;
-  });
+  readonly nextImageNumber = this.queueStore.nextImageNumber;
 
   /**
    * `true` if an image is selected (`settings()` not null) AND `form().prompt` differs from
@@ -405,105 +389,24 @@ export class WorkbenchStore {
     this.form.update((f) => ({ ...f, seed }));
   }
 
-  /**
-   * Submit `form()` for the selected project, then `refreshJobs()`.
-   * No selected project -> `error = 'No project selected'`, no HTTP call.
-   * Empty prompt (after trim) -> `error = 'Prompt fehlt'`, no HTTP call.
-   * After a SUCCESSFUL `submitJob` (before `refreshJobs`) set
-   * `formBaseline = structuredClone(form())` - the form now counts as rendered. Not on errors.
-   */
+  /** See {@link QueueStore.submit} (#47). */
   async submit(): Promise<void> {
-    const project = this.selectedProject();
-    if (project === null) {
-      this.error.set('No project selected');
-      return;
-    }
-    if (this.form().prompt.trim() === '') {
-      this.error.set('Prompt fehlt');
-      return;
-    }
-    await this.attempt(async () => {
-      await firstValueFrom(this.api.submitJob(project, this.form()));
-      this.error.set(null);
-      this.formBaseline.set(structuredClone(this.form()));
-      await this.refreshJobs();
-    });
+    await this.queueStore.submit();
   }
 
-  /** Cancel a queued job, then `refreshJobs()`. */
+  /** See {@link QueueStore.cancelJob} (#47). */
   async cancelJob(jobId: string): Promise<void> {
-    await this.attempt(async () => {
-      await firstValueFrom(this.api.cancelJob(jobId));
-      this.error.set(null);
-      await this.refreshJobs();
-    });
+    await this.queueStore.cancelJob(jobId);
   }
 
-  /**
-   * Clear the render queue history (#30): remove the `done`/`error`/`cancelled` jobs.
-   *
-   * - `await firstValueFrom(api.clearQueue())`; on error `error = errorMessage(err)` and return
-   *   (the job list stays unchanged).
-   * - On success `error.set(null)` FIRST - `refreshJobs()` deliberately does not reset the error
-   *   (it runs every 2 s), so this is the only place that clears an old message here - then
-   *   `await refreshJobs()`.
-   * - Selection, settings, form and the project list are not touched.
-   */
+  /** See {@link QueueStore.clearQueue} (#47). */
   async clearQueue(): Promise<void> {
-    await this.attempt(async () => {
-      await firstValueFrom(this.api.clearQueue());
-      this.error.set(null);
-      await this.refreshJobs();
-    });
+    await this.queueStore.clearQueue();
   }
 
-  /**
-   * Poll target (called every 2 s by `App`): `jobs.set(await listJobs())`.
-   * If a job of the selected project changed to `done` since the previous poll (job id was
-   * not `done` in the old `jobs()` list, or was not in it), reload `images` (increment
-   * `imagesVersion`) and show the image of the newest such job.
-   * This automatic selection must NEVER ask (`confirmFn`) and must NOT overwrite unrendered
-   * changes: instead of `selectImage(job.image_n)` call `showImage(job.image_n)`, and only if
-   * that returned `true` AND `!formDirty()` also `loadForm(settings()!.request)`. With a dirty
-   * form, form and baseline stay untouched.
-   * Errors: set `error` like everywhere else. EXCEPTION to the class rule: a successful poll must
-   * NOT reset `error` to null (it runs every 2 s and would hide every message within 2 s).
-   *
-   * Implementation (#47): the whole body runs inside one `attempt()` call; nothing in here calls
-   * `error.set(null)`.
-   */
+  /** See {@link QueueStore.refreshJobs} (#47). */
   async refreshJobs(): Promise<void> {
-    await this.attempt(async () => {
-      const project = this.selectedProject();
-      const jobs = await firstValueFrom(this.api.listJobs());
-      const oldJobs = this.jobs();
-      this.jobs.set(jobs);
-      if (project === null) {
-        return;
-      }
-      const newlyDone = jobs.filter((j) => {
-        if (j.project_id !== project || j.status !== 'done') {
-          return false;
-        }
-        const old = oldJobs.find((o) => o.id === j.id);
-        return old === undefined || old.status !== 'done';
-      });
-      if (newlyDone.length === 0) {
-        return;
-      }
-      const list = await firstValueFrom(this.api.listImages(project));
-      this.images.set(list);
-      this.imagesVersion.update((v) => v + 1);
-      for (let i = newlyDone.length - 1; i >= 0; i--) {
-        const job = newlyDone[i];
-        if (job.image_n !== null) {
-          if ((await this.showImage(job.image_n)) && !this.formDirty()) {
-            this.loadForm(this.settings()!.request);
-          }
-          break;
-        }
-      }
-    });
+    await this.queueStore.refreshJobs();
   }
 
   /**
