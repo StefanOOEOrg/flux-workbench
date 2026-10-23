@@ -73,3 +73,17 @@ async def test_render_connection_error(client: BridgeClient) -> None:
     respx.post(URL).mock(side_effect=httpx.ConnectError("refused"))
     with pytest.raises(BridgeError, match="not reachable"):
         await client.render({"prompt": "p"})
+
+
+@respx.mock
+async def test_connection_error_names_the_url_and_the_env_var(client: BridgeClient) -> None:
+    """#45: a wrong FLUX_BRIDGE_URL must be diagnosable from the error text."""
+    respx.post(URL).mock(side_effect=httpx.ConnectError("All connection attempts failed"))
+
+    with pytest.raises(BridgeError) as excinfo:
+        await client.render({"prompt": "p"})
+
+    message = str(excinfo.value)
+    assert URL in message
+    assert "FLUX_BRIDGE_URL" in message
+    assert "All connection attempts failed" in message

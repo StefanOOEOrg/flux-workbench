@@ -51,7 +51,10 @@ class BridgeClient:
 
         Error handling (always raise ``BridgeError``, never let httpx errors escape):
         - ``httpx.TimeoutException`` -> ``BridgeError(f"Timeout nach {self.timeout:.0f} s")``
-        - other ``httpx.HTTPError`` -> ``BridgeError(f"Bridge not reachable: {exc}")``
+        - other ``httpx.HTTPError`` ->
+          ``BridgeError(f"Bridge not reachable at {self.url}: {exc} - set FLUX_BRIDGE_URL")``
+          (#45: the message must name the URL that was tried and the env var to set, so a wrong
+          bridge address is diagnosable from the queue error)
         - status != 200 -> ``BridgeError(f"HTTP {status}: {resp.text[:500]}")``
           (a 400 body contains the bridge's reason - it must appear in the message)
         - body does not start with ``PNG_SIGNATURE`` ->
@@ -68,7 +71,9 @@ class BridgeClient:
         except httpx.TimeoutException:
             raise BridgeError(f"Timeout nach {self.timeout:.0f} s") from None
         except httpx.HTTPError as exc:
-            raise BridgeError(f"Bridge not reachable: {exc}") from exc
+            raise BridgeError(
+                f"Bridge not reachable at {self.url}: {exc} - set FLUX_BRIDGE_URL"
+            ) from exc
 
         if resp.status_code != 200:
             raise BridgeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
