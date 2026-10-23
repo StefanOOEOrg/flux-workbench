@@ -4,9 +4,9 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import { ErrorState, AttemptResult } from './error-state';
 import { FormStore } from './form.store';
-import { DiffEntry, ImageSettings, Job, ProjectInfo, RenderRequest } from './models';
-import { diffSettings, effectiveOrRequest } from './settings-diff';
-import { WordSegment, diffWords } from './word-diff';
+import { ImagesStore } from './images.store';
+import { Job, RenderRequest } from './models';
+import { ProjectsStore } from './projects.store';
 
 /**
  * All UI state as signals plus the actions the components call.
@@ -22,20 +22,22 @@ export class WorkbenchStore {
   private readonly api = inject(ApiService);
   private readonly errors = inject(ErrorState);
   private readonly forms = inject(FormStore);
+  private readonly projectsStore = inject(ProjectsStore);
+  private readonly imagesStore = inject(ImagesStore);
 
-  readonly projects = signal<ProjectInfo[]>([]);
+  readonly projects = this.projectsStore.projects;
   /** Text of the project filter field (case-insensitive substring match on the id). */
-  readonly projectFilter = signal('');
-  readonly selectedProject = signal<string | null>(null);
-  readonly images = signal<number[]>([]);
-  readonly selectedImage = signal<number | null>(null);
+  readonly projectFilter = this.projectsStore.projectFilter;
+  readonly selectedProject = this.projectsStore.selectedProject;
+  readonly images = this.imagesStore.images;
+  readonly selectedImage = this.imagesStore.selectedImage;
   /** Settings of the selected image (null if none selected). */
-  readonly settings = signal<ImageSettings | null>(null);
+  readonly settings = this.imagesStore.settings;
   /** Diff selected image vs. its predecessor in `images` ([] for the first image).
    *  Since #19 WITHOUT the paths `prompt` and `negative` (they get their own word diff). */
-  readonly diff = signal<DiffEntry[]>([]);
+  readonly diff = this.imagesStore.diff;
   /** Settings of the predecessor of the selected image (null: first image or not loadable). */
-  readonly previousSettings = signal<ImageSettings | null>(null);
+  readonly previousSettings = this.imagesStore.previousSettings;
   /**
    * LoRA slots from `GET /api/config` (#34), in display order. Empty until `loadConfig()` ran;
    * with an empty list the parameter form shows no LoRA fields and `defaultForm()` is plain
@@ -54,7 +56,7 @@ export class WorkbenchStore {
   readonly jobs = signal<Job[]>([]);
   readonly error = this.errors.error;
   /** Incremented after every reload of `images`; used as cache buster for thumbnails. */
-  readonly imagesVersion = signal(0);
+  readonly imagesVersion = this.imagesStore.imagesVersion;
 
   /** Jobs that are `queued` or `running`. */
   readonly pendingJobs = computed(() =>
@@ -66,13 +68,7 @@ export class WorkbenchStore {
    * filter text, case-insensitive (`toLowerCase`). Empty/blank filter -> all projects.
    * Order unchanged (newest first).
    */
-  readonly filteredProjects = computed<ProjectInfo[]>(() => {
-    const needle = this.projectFilter().trim().toLowerCase();
-    if (needle === '') {
-      return this.projects();
-    }
-    return this.projects().filter((p) => p.id.toLowerCase().includes(needle));
-  });
+  readonly filteredProjects = this.projectsStore.filteredProjects;
 
   /** Number of `running` jobs (all projects) - for the status badge in the header. */
   readonly runningCount = computed<number>(() => {
@@ -114,15 +110,7 @@ export class WorkbenchStore {
    * `settings().request['prompt']` (a missing/non-string request prompt counts as `''`).
    * `false` without settings.
    */
-  readonly promptModified = computed<boolean>(() => {
-    const settings = this.settings();
-    if (settings === null) {
-      return false;
-    }
-    const prompt = settings.request['prompt'];
-    const baseline = typeof prompt === 'string' ? prompt : '';
-    return this.form().prompt !== baseline;
-  });
+  readonly promptModified = this.imagesStore.promptModified;
 
   /**
    * `true` if the form has unrendered changes:
@@ -132,42 +120,16 @@ export class WorkbenchStore {
   readonly formDirty = this.forms.dirty;
 
   /**
-   * `request[key]` of `s` as a string: a missing / non-string value counts as `''`.
-   * `null` when `s` is null (caller passes `null` as "no predecessor").
-   */
-  private requestText(s: ImageSettings | null, key: string): string | null {
-    if (s === null) {
-      return null;
-    }
-    const v = s.request[key];
-    return typeof v === 'string' ? v : '';
-  }
-
-  /**
    * Word diff of the prompt for the "Image" column:
    * `diffWords(prev, current)` with `current` = `settings().request['prompt']` and
    * `prev` = `previousSettings().request['prompt']`; a missing / non-string value counts as `''`.
    * `prev` is `null` (-> all words `same`) when `previousSettings()` is null.
    * `[]` without `settings()`.
    */
-  readonly promptDiff = computed<WordSegment[]>(() => {
-    const settings = this.settings();
-    if (settings === null) {
-      return [];
-    }
-    const prev = this.requestText(this.previousSettings(), 'prompt');
-    return diffWords(prev, this.requestText(settings, 'prompt') ?? '');
-  });
+  readonly promptDiff = this.imagesStore.promptDiff;
 
   /** Same as `promptDiff`, for `request['negative']`. */
-  readonly negativeDiff = computed<WordSegment[]>(() => {
-    const settings = this.settings();
-    if (settings === null) {
-      return [];
-    }
-    const prev = this.requestText(this.previousSettings(), 'negative');
-    return diffWords(prev, this.requestText(settings, 'negative') ?? '');
-  });
+  readonly negativeDiff = this.imagesStore.negativeDiff;
 
   /**
    * `true` if no unrendered changes are lost: `!formDirty()`, otherwise the answer of
@@ -225,10 +187,7 @@ export class WorkbenchStore {
 
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
-    await this.attempt(async () => {
-      this.projects.set(await firstValueFrom(this.api.listProjects()));
-      this.error.set(null);
-    });
+    await this.projectsStore.loadProjects();
   }
 
   /**
@@ -431,39 +390,7 @@ export class WorkbenchStore {
    * an error (no `error`, still `true`) and must not be funnelled through `attempt()`.
    */
   private async showImage(n: number): Promise<boolean> {
-    const project = this.selectedProject();
-    if (project === null) {
-      return false;
-    }
-    const loaded = await this.attempt(() => firstValueFrom(this.api.getSettings(project, n)));
-    if (!loaded.ok) {
-      return false;
-    }
-    const settings = loaded.value;
-    this.settings.set(settings);
-    this.selectedImage.set(n);
-    this.error.set(null);
-    const images = this.images();
-    const idx = images.indexOf(n);
-    const prev = idx > 0 ? images[idx - 1] : null;
-    if (prev === null) {
-      this.previousSettings.set(null);
-      this.diff.set([]);
-      return true;
-    }
-    try {
-      const prevSettings = await firstValueFrom(this.api.getSettings(project, prev));
-      this.previousSettings.set(prevSettings);
-      this.diff.set(
-        diffSettings(effectiveOrRequest(prevSettings), effectiveOrRequest(settings)).filter(
-          (e) => e.path !== 'prompt' && e.path !== 'negative',
-        ),
-      );
-    } catch {
-      this.previousSettings.set(null);
-      this.diff.set([]);
-    }
-    return true;
+    return this.imagesStore.showImage(n);
   }
 
   /**

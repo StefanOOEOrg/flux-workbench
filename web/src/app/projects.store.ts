@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
 import { ErrorState } from './error-state';
@@ -28,7 +29,11 @@ export class ProjectsStore {
    * Order unchanged (newest first).
    */
   readonly filteredProjects = computed<ProjectInfo[]>(() => {
-    throw new Error('not implemented yet');
+    const needle = this.projectFilter().trim().toLowerCase();
+    if (needle === '') {
+      return this.projects();
+    }
+    return this.projects().filter((p) => p.id.toLowerCase().includes(needle));
   });
 
   /**
@@ -36,6 +41,11 @@ export class ProjectsStore {
    * Uses `ErrorState.attempt()` like everywhere else (#47); on failure only `error` changes.
    */
   async loadProjects(): Promise<void> {
-    throw new Error('not implemented yet');
+    const ok = await this.errors.attempt(() => firstValueFrom(this.api.listProjects()));
+    if (!ok.ok) {
+      return;
+    }
+    this.projects.set(ok.value);
+    this.errors.error.set(null);
   }
 }

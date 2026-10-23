@@ -1,11 +1,13 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
 import { ErrorState } from './error-state';
 import { FormStore } from './form.store';
 import { DiffEntry, ImageSettings } from './models';
 import { ProjectsStore } from './projects.store';
-import { WordSegment } from './word-diff';
+import { diffSettings, effectiveOrRequest } from './settings-diff';
+import { WordSegment, diffWords } from './word-diff';
 
 /**
  * Image column: the list of image numbers, the selected image, its settings, the predecessor and
@@ -41,9 +43,11 @@ export class ImagesStore {
    * `null` when `s` is null (caller passes `null` as "no predecessor").
    */
   private requestText(s: ImageSettings | null, key: string): string | null {
-    void s;
-    void key;
-    throw new Error('not implemented yet');
+    if (s === null) {
+      return null;
+    }
+    const v = s.request[key];
+    return typeof v === 'string' ? v : '';
   }
 
   /**
@@ -52,7 +56,13 @@ export class ImagesStore {
    * `false` without settings. Reads the form through `FormStore`.
    */
   readonly promptModified = computed<boolean>(() => {
-    throw new Error('not implemented yet');
+    const settings = this.settings();
+    if (settings === null) {
+      return false;
+    }
+    const prompt = settings.request['prompt'];
+    const baseline = typeof prompt === 'string' ? prompt : '';
+    return this.forms.form().prompt !== baseline;
   });
 
   /**
@@ -63,12 +73,22 @@ export class ImagesStore {
    * `[]` without `settings()`.
    */
   readonly promptDiff = computed<WordSegment[]>(() => {
-    throw new Error('not implemented yet');
+    const settings = this.settings();
+    if (settings === null) {
+      return [];
+    }
+    const prev = this.requestText(this.previousSettings(), 'prompt');
+    return diffWords(prev, this.requestText(settings, 'prompt') ?? '');
   });
 
   /** Same as `promptDiff`, for `request['negative']`. */
   readonly negativeDiff = computed<WordSegment[]>(() => {
-    throw new Error('not implemented yet');
+    const settings = this.settings();
+    if (settings === null) {
+      return [];
+    }
+    const prev = this.requestText(this.previousSettings(), 'negative');
+    return diffWords(prev, this.requestText(settings, 'negative') ?? '');
   });
 
   /**
@@ -87,7 +107,40 @@ export class ImagesStore {
    * predecessor is NOT an error (no `error`, still `true`).
    */
   async showImage(n: number): Promise<boolean> {
-    void n;
-    throw new Error('not implemented yet');
+    const project = this.projects.selectedProject();
+    if (project === null) {
+      return false;
+    }
+    const loaded = await this.errors.attempt(() =>
+      firstValueFrom(this.api.getSettings(project, n)),
+    );
+    if (!loaded.ok) {
+      return false;
+    }
+    const settings = loaded.value;
+    this.settings.set(settings);
+    this.selectedImage.set(n);
+    this.errors.error.set(null);
+    const images = this.images();
+    const idx = images.indexOf(n);
+    const prev = idx > 0 ? images[idx - 1] : null;
+    if (prev === null) {
+      this.previousSettings.set(null);
+      this.diff.set([]);
+      return true;
+    }
+    try {
+      const prevSettings = await firstValueFrom(this.api.getSettings(project, prev));
+      this.previousSettings.set(prevSettings);
+      this.diff.set(
+        diffSettings(effectiveOrRequest(prevSettings), effectiveOrRequest(settings)).filter(
+          (e) => e.path !== 'prompt' && e.path !== 'negative',
+        ),
+      );
+    } catch {
+      this.previousSettings.set(null);
+      this.diff.set([]);
+    }
+    return true;
   }
 }
