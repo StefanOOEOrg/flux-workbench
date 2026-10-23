@@ -19,8 +19,10 @@ import { WordSegment, diffWords } from './word-diff';
  * All UI state as signals plus the actions the components call.
  * Components only read signals and call methods; they never call `ApiService` directly.
  *
- * Error handling for every async method: catch errors, put `errorMessage(err)` into
- * `this.error` and return normally (never rethrow). A successful action sets `error` to `null`.
+ * Error handling rule (#47): every async method runs its HTTP work through `attempt()`.
+ * `attempt()` catches the error, puts `errorMessage(err)` into `this.error` and reports failure;
+ * it never rethrows and never touches `error` on success - whether a success clears the message
+ * is decided by the caller (`this.error.set(null)`), because `refreshJobs()` deliberately keeps it.
  */
 @Injectable({ providedIn: 'root' })
 export class WorkbenchStore {
@@ -659,7 +661,28 @@ export class WorkbenchStore {
     }
     return this.api.imageUrl(project, n, this.imagesVersion());
   }
+
+  /**
+   * Run one API action with the class-wide error handling (#47):
+   *
+   * - `try { return { ok: true, value: await action() }; }`
+   * - `catch (err) { this.error.set(errorMessage(err)); return { ok: false }; }`
+   *
+   * Contract:
+   * - NEVER rethrows; an API error must not escape a component callback.
+   * - Does NOT touch `error` on success. Callers that want a success to clear an old message
+   *   call `this.error.set(null)` themselves - `refreshJobs()` must keep the message.
+   * - `T` may be `void` (actions like `deleteImage`); the `ok` flag, not the value, tells success
+   *   from failure.
+   */
+  private async attempt<T>(action: () => Promise<T>): Promise<AttemptResult<T>> {
+    void action; // the stub ignores it; the implementation calls it
+    throw new Error('attempt() is not implemented yet');
+  }
 }
+
+/** Result of {@link WorkbenchStore}'s `attempt()`: the value, or "failed, `error` is set". */
+type AttemptResult<T> = { ok: true; value: T } | { ok: false };
 
 /**
  * Human-readable message for any error.
