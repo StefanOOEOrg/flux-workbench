@@ -35,6 +35,8 @@ class FakeApi {
   failDelete = false;
   failClear = false;
   failConfig = false;
+  /** Name of the next API call that must fail once with HTTP 500 `boom` (#47). */
+  failNext: string | null = null;
   config: WorkbenchConfig = {
     loras: [
       { key: 'lora_strength', label: 'LoRA 1', default: 0.2, toggle: false },
@@ -42,6 +44,15 @@ class FakeApi {
     ],
     warning: null,
   };
+
+  /** The one-shot failure for `name` when `failNext` asks for it, otherwise `null`. */
+  private fail(name: string): Observable<never> | null {
+    if (this.failNext !== name) {
+      return null;
+    }
+    this.failNext = null;
+    return throwError(() => new HttpErrorResponse({ status: 500, error: { detail: 'boom' } }));
+  }
 
   getConfig(): Observable<WorkbenchConfig> {
     this.calls.push('getConfig');
@@ -53,16 +64,28 @@ class FakeApi {
 
   listProjects(): Observable<ProjectInfo[]> {
     this.calls.push('listProjects');
+    const failure = this.fail('listProjects');
+    if (failure) {
+      return failure;
+    }
     return of(structuredClone(this.projects));
   }
   createProject(name: string): Observable<{ id: string }> {
     this.calls.push('createProject');
+    const failure = this.fail('createProject');
+    if (failure) {
+      return failure;
+    }
     const id = `20261007-${name}`;
     this.projects.unshift({ id, image_count: 0 });
     this.images[id] = [];
     return of({ id });
   }
   deleteProject(id: string): Observable<void> {
+    const failure = this.fail('deleteProject');
+    if (failure) {
+      return failure;
+    }
     this.projects = this.projects.filter((p) => p.id !== id);
     return of(undefined);
   }
@@ -84,6 +107,10 @@ class FakeApi {
     return of(undefined);
   }
   openImage(id: string, n: number): Observable<void> {
+    const failure = this.fail('openImage');
+    if (failure) {
+      return failure;
+    }
     this.opened.push([id, n]);
     return of(undefined);
   }
@@ -108,12 +135,20 @@ class FakeApi {
     return of(structuredClone(this.jobs));
   }
   submitJob(id: string, request: RenderRequest): Observable<Job> {
+    const failure = this.fail('submitJob');
+    if (failure) {
+      return failure;
+    }
     this.submitted.push([id, structuredClone(request)]);
     const job = makeJob('j' + this.submitted.length, 'queued', null);
     this.jobs.push(job);
     return of(job);
   }
   cancelJob(): Observable<void> {
+    const failure = this.fail('cancelJob');
+    if (failure) {
+      return failure;
+    }
     return of(undefined);
   }
   clearQueue(): Observable<void> {
@@ -690,6 +725,77 @@ describe('WorkbenchStore', () => {
 
       expect(store.error()).toBe('boom');
       expect(store.jobs().map((j) => j.id)).toEqual(['d', 'r']);
+    });
+  });
+
+  describe('error paths through attempt() (#47)', () => {
+    it('loadProjects reports a failure and keeps the old list', async () => {
+      const { store, api } = setup();
+      await store.loadProjects();
+      api.projects = [];
+      api.failNext = 'listProjects';
+
+      await store.loadProjects();
+
+      expect(store.error()).toBe('boom');
+      expect(store.projects()).toEqual([{ id: PID, image_count: 0 }]);
+    });
+
+    it('createProject reports a failure and selects nothing', async () => {
+      const { store, api } = setup();
+      api.failNext = 'createProject';
+
+      await store.createProject('Neu');
+
+      expect(store.error()).toBe('boom');
+      expect(store.selectedProject()).toBeNull();
+    });
+
+    it('deleteProject reports a failure and keeps the selection', async () => {
+      const { store, api } = setup();
+      await store.loadProjects();
+      await store.selectProject(PID);
+      api.failNext = 'deleteProject';
+
+      await store.deleteProject(PID);
+
+      expect(store.error()).toBe('boom');
+      expect(store.selectedProject()).toBe(PID);
+      expect(store.projects().map((p) => p.id)).toEqual([PID]);
+    });
+
+    it('submit reports a failure and leaves the form counted as unrendered', async () => {
+      const { store, api } = setup();
+      await store.selectProject(PID);
+      store.form.set({ prompt: 'a car' });
+      api.failNext = 'submitJob';
+
+      await store.submit();
+
+      expect(store.error()).toBe('boom');
+      expect(api.submitted).toEqual([]);
+      expect(store.formBaseline()).toEqual(DEFAULT_REQUEST);
+      expect(store.formDirty()).toBe(true);
+    });
+
+    it('cancelJob reports a failure', async () => {
+      const { store, api } = setup();
+      api.failNext = 'cancelJob';
+
+      await store.cancelJob('j1');
+
+      expect(store.error()).toBe('boom');
+    });
+
+    it('openImage reports a failure and opens nothing', async () => {
+      const { store, api } = setup();
+      await store.selectProject(PID);
+      api.failNext = 'openImage';
+
+      await store.openImage(1);
+
+      expect(store.error()).toBe('boom');
+      expect(api.opened).toEqual([]);
     });
   });
 
