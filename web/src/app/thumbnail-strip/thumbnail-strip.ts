@@ -1,4 +1,13 @@
-import { Component, HostListener, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  Injector,
+  afterNextRender,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 
 import { WorkbenchStore } from '../workbench.store';
 
@@ -47,6 +56,25 @@ import { WorkbenchStore } from '../workbench.store';
  *   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }`,
  *   `.menu button { justify-content: flex-start; text-align: left; }`,
  *   `.danger { color: var(--rem); }`.
+ *
+ * CHANGES FOR #47 (keyboard access + a11y of the context menu):
+ * - Keyboard opening: the template adds `(keydown)="onThumbKeydown(n, $event)"` to the figure.
+ *   `onThumbKeydown(n, event)`: for `event.key === 'ContextMenu'` or `event.shiftKey &&
+ *   event.key === 'F10'` -> `event.preventDefault()`, remember the figure as the trigger, open the
+ *   menu at the figure's rect (`getBoundingClientRect()`, `x = round(left) + 8`,
+ *   `y = round(top) + 8`) and focus the delete button. Any other key is ignored (Enter still
+ *   selects, as before).
+ * - Trigger bookkeeping: a private `trigger: HTMLElement | null` holds the element that opened the
+ *   menu (figure for both mouse and keyboard). `openMenu` sets it from `event.currentTarget`.
+ * - Focus management: after the menu renders, the delete button has focus (use
+ *   `viewChild`/`afterNextRender` or an equivalent that works zoneless). `closeMenu()` closes and
+ *   moves focus back to `trigger` when it still exists (`isConnected`), so Esc and a click on the
+ *   backdrop both land on the thumbnail again. `remove(n)` closes first (that is allowed to lose
+ *   focus when the deleted thumbnail disappears).
+ * - A11y markup: the backdrop gets `aria-hidden="true"` and must NOT be focusable (no
+ *   `tabindex`, no `keydown.enter` - Esc and a click close the menu; an `aria-hidden` element in
+ *   the tab order is an axe `aria-hidden-focus` violation), the menu `role="menu"` and the delete
+ *   button `role="menuitem"` (plus `#menuItem` for the `viewChild`); test ids stay unchanged.
  */
 @Component({
   selector: 'app-thumbnail-strip',
@@ -59,18 +87,51 @@ export class ThumbnailStrip {
   /** Open context menu: image number under the cursor + mouse position; `null` = closed. */
   protected readonly menu = signal<{ n: number; x: number; y: number } | null>(null);
 
+  private readonly injector = inject(Injector);
+
+  /** The delete entry inside the open menu; focused as soon as the menu has rendered. */
+  private readonly menuItem = viewChild<ElementRef<HTMLButtonElement>>('menuItem');
+
+  /** Element that opened the menu (the figure, for mouse and keyboard); focus returns here. */
+  private trigger: HTMLElement | null = null;
+
   /**
    * Right click on thumbnail `n`: suppress the browser menu and open the context menu at the
    * mouse position (`event.clientX` / `event.clientY`). Never changes the selection.
    */
   openMenu(n: number, event: MouseEvent): void {
     event.preventDefault();
-    this.menu.set({ n, x: event.clientX, y: event.clientY });
+    this.openAt(n, event.currentTarget as HTMLElement | null, event.clientX, event.clientY);
   }
 
-  /** Close the context menu. */
+  /**
+   * `ContextMenu` or `Shift+F10` on thumbnail `n` opens the context menu at the thumbnail's
+   * top-left corner (`+8` px) and focuses the delete entry. Every other key is ignored.
+   */
+  onThumbKeydown(n: number, event: KeyboardEvent): void {
+    if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) {
+      return;
+    }
+    event.preventDefault();
+    const trigger = event.currentTarget as HTMLElement;
+    const rect = trigger.getBoundingClientRect();
+    this.openAt(n, trigger, Math.round(rect.left) + 8, Math.round(rect.top) + 8);
+  }
+
+  /**
+   * Close the context menu. Focus returns to the figure that opened it, as long as it is still
+   * in the document (a deleted thumbnail is gone, so nothing gets the focus back).
+   */
   closeMenu(): void {
+    if (this.menu() === null) {
+      return;
+    }
     this.menu.set(null);
+    const trigger = this.trigger;
+    this.trigger = null;
+    if (trigger?.isConnected) {
+      trigger.focus();
+    }
   }
 
   /** Close the context menu, then delete image `n` through the store (no confirmation). */
@@ -83,5 +144,12 @@ export class ThumbnailStrip {
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.closeMenu();
+  }
+
+  /** Remember `trigger`, open the menu at `(x, y)` and focus its delete entry once rendered. */
+  private openAt(n: number, trigger: HTMLElement | null, x: number, y: number): void {
+    this.trigger = trigger;
+    this.menu.set({ n, x, y });
+    afterNextRender(() => this.menuItem()?.nativeElement.focus(), { injector: this.injector });
   }
 }
