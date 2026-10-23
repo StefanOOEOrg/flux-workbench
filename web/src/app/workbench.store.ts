@@ -19,8 +19,10 @@ import { WordSegment, diffWords } from './word-diff';
  * All UI state as signals plus the actions the components call.
  * Components only read signals and call methods; they never call `ApiService` directly.
  *
- * Error handling for every async method: catch errors, put `errorMessage(err)` into
- * `this.error` and return normally (never rethrow). A successful action sets `error` to `null`.
+ * Error handling rule (#47): every async method runs its HTTP work through `attempt()`.
+ * `attempt()` catches the error, puts `errorMessage(err)` into `this.error` and reports failure;
+ * it never rethrows and never touches `error` on success - whether a success clears the message
+ * is decided by the caller (`this.error.set(null)`), because `refreshJobs()` deliberately keeps it.
  */
 @Injectable({ providedIn: 'root' })
 export class WorkbenchStore {
@@ -230,13 +232,11 @@ export class WorkbenchStore {
    *   touched.
    */
   async loadConfig(): Promise<void> {
-    let config;
-    try {
-      config = await firstValueFrom(this.api.getConfig());
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const result = await this.attempt(() => firstValueFrom(this.api.getConfig()));
+    if (!result.ok) {
       return;
     }
+    const config = result.value;
     this.loras.set(config.loras);
     this.error.set(typeof config.warning === 'string' ? config.warning : null);
     if (this.selectedImage() === null) {
@@ -247,12 +247,10 @@ export class WorkbenchStore {
 
   /** `projects.set(await listProjects())`. */
   async loadProjects(): Promise<void> {
-    try {
+    await this.attempt(async () => {
       this.projects.set(await firstValueFrom(this.api.listProjects()));
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -270,14 +268,12 @@ export class WorkbenchStore {
     if (!this.confirmDiscard()) {
       return;
     }
-    try {
+    await this.attempt(async () => {
       const { id } = await firstValueFrom(this.api.createProject(name));
       await this.loadProjects();
       await this.loadProject(id);
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -288,7 +284,7 @@ export class WorkbenchStore {
    * was already confirmed).
    */
   async deleteProject(id: string): Promise<void> {
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.deleteProject(id));
       const wasSelected = this.selectedProject() === id;
       await this.loadProjects();
@@ -303,9 +299,7 @@ export class WorkbenchStore {
         this.formBaseline.set(this.defaultForm());
       }
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -523,25 +517,21 @@ export class WorkbenchStore {
       this.error.set('Prompt fehlt');
       return;
     }
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.submitJob(project, this.form()));
       this.error.set(null);
       this.formBaseline.set(structuredClone(this.form()));
       await this.refreshJobs();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /** Cancel a queued job, then `refreshJobs()`. */
   async cancelJob(jobId: string): Promise<void> {
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.cancelJob(jobId));
       this.error.set(null);
       await this.refreshJobs();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -555,13 +545,11 @@ export class WorkbenchStore {
    * - Selection, settings, form and the project list are not touched.
    */
   async clearQueue(): Promise<void> {
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.clearQueue());
       this.error.set(null);
       await this.refreshJobs();
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -628,13 +616,11 @@ export class WorkbenchStore {
     if (comment === settings.comment) {
       return;
     }
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.saveComment(project, image, comment));
       this.settings.update((s) => (s === null ? s : { ...s, comment }));
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /** Open image `n` of the selected project in the system viewer (no-op without project). */
@@ -643,12 +629,10 @@ export class WorkbenchStore {
     if (project === null) {
       return;
     }
-    try {
+    await this.attempt(async () => {
       await firstValueFrom(this.api.openImage(project, n));
       this.error.set(null);
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /** `api.imageUrl(selectedProject, n, imagesVersion())`; `''` without a selected project. */
@@ -659,7 +643,32 @@ export class WorkbenchStore {
     }
     return this.api.imageUrl(project, n, this.imagesVersion());
   }
+
+  /**
+   * Run one API action with the class-wide error handling (#47):
+   *
+   * - `try { return { ok: true, value: await action() }; }`
+   * - `catch (err) { this.error.set(errorMessage(err)); return { ok: false }; }`
+   *
+   * Contract:
+   * - NEVER rethrows; an API error must not escape a component callback.
+   * - Does NOT touch `error` on success. Callers that want a success to clear an old message
+   *   call `this.error.set(null)` themselves - `refreshJobs()` must keep the message.
+   * - `T` may be `void` (actions like `deleteImage`); the `ok` flag, not the value, tells success
+   *   from failure.
+   */
+  private async attempt<T>(action: () => Promise<T>): Promise<AttemptResult<T>> {
+    try {
+      return { ok: true, value: await action() };
+    } catch (err) {
+      this.error.set(errorMessage(err));
+      return { ok: false };
+    }
+  }
 }
+
+/** Result of {@link WorkbenchStore}'s `attempt()`: the value, or "failed, `error` is set". */
+type AttemptResult<T> = { ok: true; value: T } | { ok: false };
 
 /**
  * Human-readable message for any error.
