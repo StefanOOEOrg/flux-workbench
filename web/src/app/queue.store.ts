@@ -1,4 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
 import { ErrorState } from './error-state';
@@ -28,18 +29,18 @@ export class QueueStore {
   readonly jobs = signal<Job[]>([]);
 
   /** Jobs that are `queued` or `running`. */
-  readonly pendingJobs = computed(() => {
-    throw new Error('not implemented yet');
-  });
+  readonly pendingJobs = computed(() =>
+    this.jobs().filter((j) => j.status === 'queued' || j.status === 'running'),
+  );
 
   /** Number of `running` jobs (all projects) - for the status badge in the header. */
   readonly runningCount = computed<number>(() => {
-    throw new Error('not implemented yet');
+    return this.jobs().filter((j) => j.status === 'running').length;
   });
 
   /** Number of `queued` jobs (all projects) - for the status badge in the header. */
   readonly queuedCount = computed<number>(() => {
-    throw new Error('not implemented yet');
+    return this.jobs().filter((j) => j.status === 'queued').length;
   });
 
   /**
@@ -47,7 +48,13 @@ export class QueueStore {
    * `[]` without a selected project. Used for the placeholder tiles in the thumbnail strip.
    */
   readonly projectPendingJobs = computed<Job[]>(() => {
-    throw new Error('not implemented yet');
+    const project = this.projects.selectedProject();
+    if (project === null) {
+      return [];
+    }
+    return this.jobs().filter(
+      (j) => j.project_id === project && (j.status === 'queued' || j.status === 'running'),
+    );
   });
 
   /**
@@ -56,7 +63,9 @@ export class QueueStore {
    * `1 + projectPendingJobs().length`. (Each pending job will take one number before it.)
    */
   readonly nextImageNumber = computed<number>(() => {
-    throw new Error('not implemented yet');
+    const images = this.images.images();
+    const base = images.length === 0 ? 1 : Math.max(...images) + 1;
+    return base + this.projectPendingJobs().length;
   });
 
   /**
@@ -70,13 +79,30 @@ export class QueueStore {
    * baseline come from the injected stores.
    */
   async submit(): Promise<void> {
-    throw new Error('not implemented yet');
+    const project = this.projects.selectedProject();
+    if (project === null) {
+      this.errors.error.set('No project selected');
+      return;
+    }
+    if (this.forms.form().prompt.trim() === '') {
+      this.errors.error.set('Prompt fehlt');
+      return;
+    }
+    await this.errors.attempt(async () => {
+      await firstValueFrom(this.api.submitJob(project, this.forms.form()));
+      this.errors.error.set(null);
+      this.forms.formBaseline.set(structuredClone(this.forms.form()));
+      await this.refreshJobs();
+    });
   }
 
   /** Cancel a queued job, then `refreshJobs()`. */
   async cancelJob(jobId: string): Promise<void> {
-    void jobId;
-    throw new Error('not implemented yet');
+    await this.errors.attempt(async () => {
+      await firstValueFrom(this.api.cancelJob(jobId));
+      this.errors.error.set(null);
+      await this.refreshJobs();
+    });
   }
 
   /**
@@ -90,7 +116,11 @@ export class QueueStore {
    * - Selection, settings, form and the project list are not touched.
    */
   async clearQueue(): Promise<void> {
-    throw new Error('not implemented yet');
+    await this.errors.attempt(async () => {
+      await firstValueFrom(this.api.clearQueue());
+      this.errors.error.set(null);
+      await this.refreshJobs();
+    });
   }
 
   /**
@@ -110,6 +140,36 @@ export class QueueStore {
    * `formDirty` from `FormStore`.
    */
   async refreshJobs(): Promise<void> {
-    throw new Error('not implemented yet');
+    await this.errors.attempt(async () => {
+      const project = this.projects.selectedProject();
+      const jobs = await firstValueFrom(this.api.listJobs());
+      const oldJobs = this.jobs();
+      this.jobs.set(jobs);
+      if (project === null) {
+        return;
+      }
+      const newlyDone = jobs.filter((j) => {
+        if (j.project_id !== project || j.status !== 'done') {
+          return false;
+        }
+        const old = oldJobs.find((o) => o.id === j.id);
+        return old === undefined || old.status !== 'done';
+      });
+      if (newlyDone.length === 0) {
+        return;
+      }
+      const list = await firstValueFrom(this.api.listImages(project));
+      this.images.images.set(list);
+      this.images.imagesVersion.update((v) => v + 1);
+      for (let i = newlyDone.length - 1; i >= 0; i--) {
+        const job = newlyDone[i];
+        if (job.image_n !== null) {
+          if ((await this.images.showImage(job.image_n)) && !this.forms.dirty()) {
+            this.forms.load(this.images.settings()!.request);
+          }
+          break;
+        }
+      }
+    });
   }
 }
