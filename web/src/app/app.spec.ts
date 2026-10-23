@@ -1,11 +1,18 @@
 import { TestBed } from '@angular/core/testing';
+import { isDevMode } from '@angular/core';
 import { vi } from 'vitest';
 
 import { App, POLL_MS } from './app';
+import { DEV_ONLY_PROVIDERS } from './app.config';
 import { WorkbenchStore } from './workbench.store';
 
 describe('App', () => {
   afterEach(() => vi.useRealTimers());
+
+  it('enables the exhaustive change detection check in dev mode (#47)', () => {
+    expect(isDevMode()).toBe(true);
+    expect(DEV_ONLY_PROVIDERS).toHaveLength(1);
+  });
 
   it('loads projects and polls the queue until destroyed', () => {
     vi.useFakeTimers();
