@@ -71,7 +71,9 @@ class BridgeClient:
         except httpx.TimeoutException:
             raise BridgeError(f"Timeout nach {self.timeout:.0f} s") from None
         except httpx.HTTPError as exc:
-            raise BridgeError(f"Bridge not reachable: {exc}") from exc
+            raise BridgeError(
+                f"Bridge not reachable at {self.url}: {exc} - set FLUX_BRIDGE_URL"
+            ) from exc
 
         if resp.status_code != 200:
             raise BridgeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
