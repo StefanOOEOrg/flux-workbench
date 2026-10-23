@@ -338,20 +338,16 @@ export class WorkbenchStore {
     if (project === null) {
       return;
     }
-    try {
-      await firstValueFrom(this.api.deleteImage(project, n));
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const deleted = await this.attempt(() => firstValueFrom(this.api.deleteImage(project, n)));
+    if (!deleted.ok) {
       return;
     }
     await this.loadProjects();
-    let list: number[];
-    try {
-      list = await firstValueFrom(this.api.listImages(project));
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const listed = await this.attempt(() => firstValueFrom(this.api.listImages(project)));
+    if (!listed.ok) {
       return;
     }
+    const list = listed.value;
     this.images.set(list);
     this.imagesVersion.update((v) => v + 1);
 
@@ -403,7 +399,7 @@ export class WorkbenchStore {
    * Implementation (#47): the whole body runs inside one `attempt()` call.
    */
   private async loadProject(id: string): Promise<void> {
-    try {
+    await this.attempt(async () => {
       this.selectedProject.set(id);
       const list = await firstValueFrom(this.api.listImages(id));
       this.images.set(list);
@@ -420,9 +416,7 @@ export class WorkbenchStore {
       if (await this.showImage(list[list.length - 1])) {
         this.loadForm(this.settings()!.request);
       }
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
@@ -464,13 +458,11 @@ export class WorkbenchStore {
     if (project === null) {
       return false;
     }
-    let settings: ImageSettings;
-    try {
-      settings = await firstValueFrom(this.api.getSettings(project, n));
-    } catch (err) {
-      this.error.set(errorMessage(err));
+    const loaded = await this.attempt(() => firstValueFrom(this.api.getSettings(project, n)));
+    if (!loaded.ok) {
       return false;
     }
+    const settings = loaded.value;
     this.settings.set(settings);
     this.selectedImage.set(n);
     this.error.set(null);
@@ -577,8 +569,8 @@ export class WorkbenchStore {
    * `error.set(null)`.
    */
   async refreshJobs(): Promise<void> {
-    const project = this.selectedProject();
-    try {
+    await this.attempt(async () => {
+      const project = this.selectedProject();
       const jobs = await firstValueFrom(this.api.listJobs());
       const oldJobs = this.jobs();
       this.jobs.set(jobs);
@@ -607,9 +599,7 @@ export class WorkbenchStore {
           break;
         }
       }
-    } catch (err) {
-      this.error.set(errorMessage(err));
-    }
+    });
   }
 
   /**
