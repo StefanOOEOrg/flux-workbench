@@ -824,6 +824,18 @@ describe('WorkbenchStore', () => {
       store.form.update((f) => ({ ...f, steps: 5 }));
       expect(store.formDirty()).toBe(true);
     });
+
+    it('clears an old error when an image is shown', async () => {
+      const { store, api } = setup();
+      api.images[PID] = [1];
+      api.settings[`${PID}/1`] = s({ prompt: 'a' }, null);
+      store.error.set('old message');
+
+      await store.selectProject(PID);
+
+      expect(store.selectedImage()).toBe(1);
+      expect(store.error()).toBeNull();
+    });
   });
 
   describe('loadConfig', () => {
