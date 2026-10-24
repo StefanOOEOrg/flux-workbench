@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Hard limit for configurable LoRA slots (Stefan: "maximal 5 einträge").
+#: Hard limit for configurable LoRA slots (see issue #34: at most 5).
 MAX_LORAS = 5
 
 #: Strength range the bridge accepts (see the render.py example).

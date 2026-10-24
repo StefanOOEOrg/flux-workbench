@@ -10,6 +10,7 @@
     "lint": "ng lint"
   },
   "private": true,
+  "engines": { "node": ">=22" },
   "packageManager": "npm@11.19.0",
   "dependencies": {
     "@angular/common": "^22.2.0",

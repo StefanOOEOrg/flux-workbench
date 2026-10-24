@@ -38,3 +38,8 @@ __pycache__/
 
 # Local LoRA config (per machine; only the template is committed)
 /loras.json
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+*.log
