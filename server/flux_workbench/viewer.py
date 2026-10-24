@@ -1,6 +1,8 @@
-"""Open an image in the macOS default viewer."""
+"""Open an image in the system's default viewer (multi-platform since #61)."""
 
+import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -9,20 +11,56 @@ Runner = Callable[..., Any]
 
 
 class ViewerError(RuntimeError):
-    """``open`` failed. API maps this to HTTP 500 with the message."""
+    """``open``/``xdg-open``/``os.startfile`` failed. API maps this to HTTP 500 with the message."""
 
 
-def open_in_viewer(path: Path, runner: Runner = subprocess.run) -> None:
-    """Run ``runner(["open", str(path)], check=True, timeout=10)``.
+def viewer_command(path: Path, platform: str) -> list[str] | None:
+    """
+    Command that opens `path` in the default viewer for `platform` (`sys.platform` syntax):
 
-    ``open`` returns immediately on macOS. ``runner`` is injected for tests.
+    - macOS (`platform == "darwin"`): `["open", str(path)]`
+    - any other POSIX (`"linux"`, `"freebsd13"`, ...): `["xdg-open", str(path)]`
+    - Windows (`platform.startswith("win")`): `None` - there is no portable command; Windows is
+      opened through `os.startfile(str(path))` instead.
+    """
+    if platform == "darwin":
+        return ["open", str(path)]
+    if platform.startswith("win"):
+        return None
+    return ["xdg-open", str(path)]
+
+
+def open_in_viewer(
+    path: Path,
+    runner: Runner = subprocess.run,
+    platform: str | None = None,
+) -> None:
+    """
+    Open `path` in the system viewer; `platform=None` means `sys.platform` (#61).
+
+    - Windows: call `os.startfile(str(path))`, looked up via `getattr(os, "startfile", None)`.
+      A missing attribute -> ``ViewerError("Viewer could not be started: os.startfile is not
+      available")``. `runner` is NOT used on Windows.
+    - Otherwise: run ``viewer_command(path, platform)`` as
+      ``runner(cmd, check=True, timeout=10)``.
 
     Raises:
-        ViewerError: if the runner raises ``OSError`` (e.g. ``open`` not found),
-            ``subprocess.CalledProcessError`` or ``subprocess.TimeoutExpired``;
-            message ``f"Viewer could not be started: {exc}"``.
+        ViewerError: if opening fails - ``OSError``, ``subprocess.CalledProcessError`` or
+            ``subprocess.TimeoutExpired``; message ``f"Viewer could not be started: {exc}"``.
     """
+    os_name = platform or sys.platform
+
+    if os_name.startswith("win"):
+        opener = getattr(os, "startfile", None)
+        if opener is None:
+            raise ViewerError("Viewer could not be started: os.startfile is not available")
+        try:
+            opener(str(path))
+        except OSError as exc:
+            raise ViewerError(f"Viewer could not be started: {exc}") from exc
+        return
+
     try:
-        runner(["open", str(path)], check=True, timeout=10)
+        runner(viewer_command(path, os_name), check=True, timeout=10)
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         raise ViewerError(f"Viewer could not be started: {exc}") from exc
