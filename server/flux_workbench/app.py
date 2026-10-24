@@ -162,6 +162,13 @@ def create_app(
 
     if web_dist is not None and web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
+    else:
+        # #61: without a build, `GET /` must explain the missing step instead of returning 404.
+        # Implement a route for exactly `/` that returns `HTMLResponse` (status 200, text/html)
+        # containing `<h1>Flux Workbench</h1>`, the sentence `The web app is not built yet.` and
+        # a hint naming `npm ci && npm run build` inside the `web/` folder. `/api/*` stays
+        # untouched, and a missing `web_dist` must not raise.
+        pass
     return app
 
 

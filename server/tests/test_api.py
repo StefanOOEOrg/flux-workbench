@@ -184,3 +184,21 @@ def test_serves_web_app(api: TestClient) -> None:
     resp = api.get("/")
     assert resp.status_code == 200
     assert "workbench" in resp.text
+
+
+def test_root_explains_the_missing_build(store, tmp_path) -> None:
+    """#61: a fresh clone without `npm run build` must not stare at a bare 404."""
+    app = create_app(
+        store,
+        RenderQueue(store, FakeRenderer()),
+        web_dist=tmp_path / "missing",
+        lora_config_path=tmp_path / "loras.json",
+    )
+    with TestClient(app) as client:
+        resp = client.get("/")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "not built" in resp.text
+    assert "npm" in resp.text
+    assert "build" in resp.text
