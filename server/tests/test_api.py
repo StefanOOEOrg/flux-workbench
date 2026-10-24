@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from flux_workbench import app as app_module
 from flux_workbench.app import create_app
 from flux_workbench.render_queue import RenderQueue
 from flux_workbench.viewer import ViewerError
@@ -202,3 +203,42 @@ def test_root_explains_the_missing_build(store, tmp_path) -> None:
     assert "not built" in resp.text
     assert "npm" in resp.text
     assert "build" in resp.text
+
+
+def test_main_warns_before_start_when_web_dist_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """#61: a fresh clone sees the build hint before the start line, then the server starts."""
+    started: list[tuple[tuple, dict]] = []
+    monkeypatch.setattr(app_module.config, "WEB_DIST_DIR", tmp_path / "missing")
+    monkeypatch.setattr(app_module.config, "ENV_FILE", tmp_path / ".env")
+    monkeypatch.setattr(app_module, "build_default_app", lambda: "app")
+    monkeypatch.setattr(app_module.uvicorn, "run", lambda *a, **kw: started.append((a, kw)))
+
+    app_module.main()
+
+    out = capsys.readouterr().out.splitlines()
+    assert out[0] == (
+        "Web app not built: run 'npm ci && npm run build' in web/ (the UI will not load)"
+    )
+    assert "Flux Workbench: http://" in out[1]
+    assert started and started[0][1] == {
+        "host": app_module.config.HOST,
+        "port": app_module.config.PORT,
+    }
+
+
+def test_main_prints_no_build_hint_when_web_dist_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """#61: with a built UI the start line stays exactly as before."""
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    monkeypatch.setattr(app_module.config, "WEB_DIST_DIR", dist)
+    monkeypatch.setattr(app_module.config, "ENV_FILE", tmp_path / ".env")
+    monkeypatch.setattr(app_module, "build_default_app", lambda: "app")
+    monkeypatch.setattr(app_module.uvicorn, "run", lambda *a, **kw: None)
+
+    app_module.main()
+
+    assert "Web app not built" not in capsys.readouterr().out
