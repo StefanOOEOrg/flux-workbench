@@ -1,6 +1,8 @@
 """Open an image in the system's default viewer (multi-platform since #61)."""
 
+import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -21,7 +23,11 @@ def viewer_command(path: Path, platform: str) -> list[str] | None:
     - Windows (`platform.startswith("win")`): `None` - there is no portable command; Windows is
       opened through `os.startfile(str(path))` instead.
     """
-    raise NotImplementedError
+    if platform == "darwin":
+        return ["open", str(path)]
+    if platform.startswith("win"):
+        return None
+    return ["xdg-open", str(path)]
 
 
 def open_in_viewer(
@@ -42,4 +48,19 @@ def open_in_viewer(
         ViewerError: if opening fails - ``OSError``, ``subprocess.CalledProcessError`` or
             ``subprocess.TimeoutExpired``; message ``f"Viewer could not be started: {exc}"``.
     """
-    raise NotImplementedError
+    os_name = platform or sys.platform
+
+    if os_name.startswith("win"):
+        opener = getattr(os, "startfile", None)
+        if opener is None:
+            raise ViewerError("Viewer could not be started: os.startfile is not available")
+        try:
+            opener(str(path))
+        except OSError as exc:
+            raise ViewerError(f"Viewer could not be started: {exc}") from exc
+        return
+
+    try:
+        runner(viewer_command(path, os_name), check=True, timeout=10)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise ViewerError(f"Viewer could not be started: {exc}") from exc

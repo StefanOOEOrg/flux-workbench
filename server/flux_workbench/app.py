@@ -14,7 +14,7 @@ from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -163,12 +163,17 @@ def create_app(
     if web_dist is not None and web_dist.is_dir():
         app.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     else:
-        # #61: without a build, `GET /` must explain the missing step instead of returning 404.
-        # Implement a route for exactly `/` that returns `HTMLResponse` (status 200, text/html)
-        # containing `<h1>Flux Workbench</h1>`, the sentence `The web app is not built yet.` and
-        # a hint naming `npm ci && npm run build` inside the `web/` folder. `/api/*` stays
-        # untouched, and a missing `web_dist` must not raise.
-        pass
+        # #61: without a build, `GET /` explains the missing step instead of returning 404.
+        @app.get("/", response_class=HTMLResponse)
+        def index() -> HTMLResponse:
+            """Landing page for a fresh clone: tells the user to build the web app."""
+            return HTMLResponse(
+                "<h1>Flux Workbench</h1>"
+                "<p>The web app is not built yet.</p>"
+                "<p>Run <code>npm ci &amp;&amp; npm run build</code> in <code>web/</code>, "
+                "then reload this page.</p>"
+            )
+
     return app
 
 
@@ -204,6 +209,8 @@ def build_default_app() -> FastAPI:
 def main() -> None:
     """Entry point: ``uv run flux-workbench``."""
     env_file = config.ENV_FILE if config.ENV_FILE.exists() else "none"
+    if not config.WEB_DIST_DIR.is_dir():
+        print("Web app not built: run 'npm ci && npm run build' in web/ (the UI will not load)")
     print(
         f"Flux Workbench: http://{config.HOST}:{config.PORT}  "
         f"(Bridge: {config.BRIDGE_URL}, Env: {env_file})"
