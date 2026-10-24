@@ -1,5 +1,7 @@
 # flux-workbench
 
+[![CI](https://github.com/StefanOOEOrg/flux-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanOOEOrg/flux-workbench/actions/workflows/ci.yml)
+
 ![Flux Workbench: projects, image column with the diff to the previous image, parameter form and queue](docs/screenshot.png)
 
 Local workbench for FLUX renderings. Everything lives in plain folders on disk: create a project,
@@ -130,6 +132,10 @@ cd web && node node_modules/@angular/cli/bin/ng.js test --watch=false
 #        node node_modules/typescript/bin/tsc -p tsconfig.spec.json --noEmit
 # UI with live reload: start the server, then in web/: node node_modules/@angular/cli/bin/ng.js serve
 ```
+
+**If `ng: not found` after `npm ci`:** your shell exports `NODE_ENV=production`, which makes npm skip
+devDependencies. Use `env -u NODE_ENV npm ci` or `npm ci --include=dev`. CI does not set it, so a green
+run there does not prove your shell is clean.
 
 The server serves the built app from `web/dist/web/browser`; `ng serve` uses `proxy.conf.json` to
 reach `/api` on port 8080 while developing.
