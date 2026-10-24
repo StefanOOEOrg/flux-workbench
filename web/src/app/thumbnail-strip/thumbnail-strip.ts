@@ -41,7 +41,7 @@ import { WorkbenchStore } from '../workbench.store';
  *   (no `store.selectImage`), so the image column and the form stay as they are.
  * - `closeMenu()`: `menu.set(null)`.
  * - `remove(n)`: `closeMenu()` first, then `await this.store.deleteImage(n)`. NO `confirmFn`,
- *   no question - deleting is immediate (Stefan's decision, see issue #25).
+ *   no question - deleting is immediate (see issue #25).
  * - `@HostListener('document:keydown.escape') onEscape()`: `closeMenu()`.
  * - Overlay at the END of the template, only while `menu()` is not null:
  *   `<div data-testid="context-backdrop" class="backdrop" tabindex="0" (click)="closeMenu()"

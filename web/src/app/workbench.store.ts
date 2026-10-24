@@ -223,7 +223,7 @@ export class WorkbenchStore {
   }
 
   /**
-   * Delete image `n` of the selected project (#25). NO confirmation - Stefan decided
+   * Delete image `n` of the selected project (#25). NO confirmation - decided in issue #25
    * against a dialog; the right-click + menu entry is the only gate.
    *
    * - No selected project: return, no HTTP call.

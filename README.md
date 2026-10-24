@@ -100,7 +100,8 @@ file. Rules: `KEY=VALUE` lines, `#` comments, optional `export `, values may be 
 | `FLUX_ENV_FILE` | `./.env` |
 
 > The bridge default `http://127.0.0.1:8002/generate` only fits a bridge running on the same
-> machine. For the GX10 put `FLUX_BRIDGE_URL=http://192.168.178.87:8002/generate` into `.env`.
+> machine. For a render host (e.g. a GX10 box) put
+> `FLUX_BRIDGE_URL=http://YOUR-BRIDGE-HOST:8002/generate` into `.env`.
 > The app prints the bridge and the env file it uses on startup, and a render error names the
 > URL that failed.
 
@@ -142,3 +143,16 @@ web/src/app/             Angular components, stores and services; specs next to 
 docs/                    screenshot and the original UI mockup
 loras.example.json       template for the per-machine LoRA slots
 ```
+
+## License
+
+MIT - see [LICENSE](LICENSE). Copyright (c) 2026 StefanOOEOrg.
+
+## Scope and limitations
+
+- Single user, local tool: the server binds `127.0.0.1` by default, there is no authentication and
+  no multi-user support. Do not expose it to a network without putting a proxy with auth in front.
+- A render bridge is required for rendering; browsing, comparing and deleting images works without.
+- "Open image" uses the system viewer: `open` on macOS, `xdg-open` on Linux, `os.startfile` on
+  Windows (needs `xdg-utils` on Linux).
+- The web UI is a static build served by the same process; the API alone is enough for scripting.
