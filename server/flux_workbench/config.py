@@ -24,6 +24,9 @@ WEB_DIST_DIR = Path(
     os.environ.get("FLUX_WEB_DIST_DIR", REPO_ROOT / "web" / "dist" / "web" / "browser")
 ).resolve()
 
+#: Angular sources; only used to detect a stale build (#69).
+WEB_SRC_DIR = Path(os.environ.get("FLUX_WEB_SRC_DIR", REPO_ROOT / "web" / "src")).resolve()
+
 #: Full URL of the render bridge endpoint.
 BRIDGE_URL = os.environ.get("FLUX_BRIDGE_URL", "http://127.0.0.1:8002/generate")
 

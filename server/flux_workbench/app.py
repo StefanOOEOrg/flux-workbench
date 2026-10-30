@@ -24,6 +24,7 @@ from .loras import load_loras
 from .projects import NotFound, ProjectError, ProjectExists, ProjectStore
 from .render_queue import JobNotCancellable, RenderQueue
 from .viewer import ViewerError, open_in_viewer
+from .web_build import web_build_is_stale
 
 
 class CreateProject(BaseModel):
@@ -207,10 +208,21 @@ def build_default_app() -> FastAPI:
 
 
 def main() -> None:
-    """Entry point: ``uv run flux-workbench``."""
+    """Entry point: ``uv run flux-workbench``.
+
+    #69: when ``WEB_DIST_DIR`` exists but is older than ``WEB_SRC_DIR`` (a `git pull` without a
+    rebuild), print before the start line:
+    ``Web build is older than the sources: run 'npm run build' in web/ (the UI may be out of date)``
+    The "not built" branch below stays unchanged and takes precedence.
+    """
     env_file = config.ENV_FILE if config.ENV_FILE.exists() else "none"
     if not config.WEB_DIST_DIR.is_dir():
         print("Web app not built: run 'npm ci && npm run build' in web/ (the UI will not load)")
+    elif web_build_is_stale(config.WEB_SRC_DIR, config.WEB_DIST_DIR):
+        print(
+            "Web build is older than the sources: run 'npm run build' in web/ "
+            "(the UI may be out of date)"
+        )
     print(
         f"Flux Workbench: http://{config.HOST}:{config.PORT}  "
         f"(Bridge: {config.BRIDGE_URL}, Env: {env_file})"
