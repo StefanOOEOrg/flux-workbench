@@ -207,7 +207,13 @@ def build_default_app() -> FastAPI:
 
 
 def main() -> None:
-    """Entry point: ``uv run flux-workbench``."""
+    """Entry point: ``uv run flux-workbench``.
+
+    #69: when ``WEB_DIST_DIR`` exists but is older than ``WEB_SRC_DIR`` (a `git pull` without a
+    rebuild), print before the start line:
+    ``Web build is older than the sources: run 'npm run build' in web/ (the UI may be out of date)``
+    The "not built" branch below stays unchanged and takes precedence.
+    """
     env_file = config.ENV_FILE if config.ENV_FILE.exists() else "none"
     if not config.WEB_DIST_DIR.is_dir():
         print("Web app not built: run 'npm ci && npm run build' in web/ (the UI will not load)")

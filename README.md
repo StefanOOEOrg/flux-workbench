@@ -80,6 +80,23 @@ uv run flux-workbench
 
 Open <http://127.0.0.1:8080>. The start line prints the bridge URL and the env file in use.
 
+## How the UI is delivered
+
+The web UI is a single-page Angular app, but a **pre-built** one - there is no bundler at runtime:
+
+```
+cd web && npm run build     # TypeScript, templates, styles -> web/dist/web/browser
+uv run flux-workbench       # FastAPI serves that folder at "/" plus /api/*
+```
+
+- `GET /` returns the finished `index.html`; the browser loads `main-*.js` and renders client-side.
+- `web/public/` (favicon, icons) is copied into the build - files there are only live after a rebuild.
+- `web/dist/` is gitignored, so **after a `git pull` that touches `web/`, rebuild**:
+  `cd web && npm run build`. The server warns at startup when the build is older than `web/src`.
+- No server restart is needed after a rebuild: static files are read from disk per request.
+- Live reload while developing: `cd web && node node_modules/@angular/cli/bin/ng.js serve`
+  (port 4200, proxies `/api` to the Python server).
+
 ## Configuration (environment variables)
 
 Variables can be set in the shell or in a `.env` file in the repo root (gitignored). Copy the
