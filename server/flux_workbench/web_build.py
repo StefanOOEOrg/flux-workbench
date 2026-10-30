@@ -10,7 +10,9 @@ def newest_mtime(root: Path) -> float:
 
     Directories themselves do not count (only files).
     """
-    raise NotImplementedError
+    if not root.is_dir():
+        return 0.0
+    return max((p.stat().st_mtime for p in root.rglob("*") if p.is_file()), default=0.0)
 
 
 def web_build_is_stale(src: Path, dist: Path) -> bool:
@@ -26,4 +28,10 @@ def web_build_is_stale(src: Path, dist: Path) -> bool:
     rebuild the server keeps serving the previous `index.html` and assets - the failure mode
     from #69 (new favicon never appeared).
     """
-    raise NotImplementedError
+    index = dist / "index.html"
+    if not index.is_file():
+        return False
+    newest = newest_mtime(src)
+    if newest == 0.0:
+        return False
+    return newest > index.stat().st_mtime
