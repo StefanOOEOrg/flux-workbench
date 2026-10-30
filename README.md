@@ -1,5 +1,7 @@
 # flux-workbench
 
+<p align="center"><img src="docs/logo.svg" width="96" height="96" alt="Flux Workbench logo"></p>
+
 [![CI](https://github.com/StefanOOEOrg/flux-workbench/actions/workflows/ci.yml/badge.svg)](https://github.com/StefanOOEOrg/flux-workbench/actions/workflows/ci.yml)
 
 ![Flux Workbench: projects, image column with the diff to the previous image, parameter form and queue](docs/screenshot.png)

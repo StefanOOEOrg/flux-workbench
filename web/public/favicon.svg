@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Flux Workbench">
+  <defs>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9d85ff"/>
+      <stop offset="1" stop-color="#6a4be0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#171a21"/>
+  <rect x="8" y="8" width="496" height="496" rx="106" fill="none" stroke="#2a2f3d" stroke-width="4"/>
+  <path d="M140 396 L372 116" stroke="#ffffff" stroke-opacity="0.10" stroke-width="26" stroke-linecap="round"/>
+  <path d="M178 132 H360 V188 H238 V238 H330 V292 H238 V380 H178 Z" fill="url(#a)"/>
+  <circle cx="382" cy="382" r="14" fill="#9d85ff" fill-opacity="0.9"/>
+</svg>
