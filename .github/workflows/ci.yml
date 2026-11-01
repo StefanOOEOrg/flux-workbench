@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  server:
+  ci-ok-server:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -26,7 +26,7 @@ jobs:
       - run: uv run ruff format --check server
       - run: uv run pytest -q
 
-  web:
+  ci-ok-web:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -48,11 +48,11 @@ jobs:
   # Aggregat-Gate: ein Pflicht-Check für alle Jobs des Workflows.
   # Eigener Job statt Matrix-Check, weil der Ruleset-Name stabil bleiben muss.
   ci-ok:
-    needs: [server, web]
+    needs: [ci-ok-server, ci-ok-web]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Fail unless all jobs succeeded
         run: |
-          echo "server: ${{ needs.server.result }} web: ${{ needs.web.result }} "
-          [ "${{ needs.server.result }}" = "success" ] && [ "${{ needs.web.result }}" = "success" ]
+          echo "server: ${{ needs.ci-ok-server.result }} web: ${{ needs.ci-ok-web.result }} "
+          [ "${{ needs.ci-ok-server.result }}" = "success" ] && [ "${{ needs.ci-ok-web.result }}" = "success" ]
