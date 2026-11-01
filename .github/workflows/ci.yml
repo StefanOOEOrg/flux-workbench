@@ -45,3 +45,14 @@ jobs:
       - run: node node_modules/typescript/bin/tsc -p tsconfig.app.json --noEmit
       - run: node node_modules/typescript/bin/tsc -p tsconfig.spec.json --noEmit
       - run: npm run build
+  # Aggregat-Gate: ein Pflicht-Check für alle Jobs des Workflows.
+  # Eigener Job statt Matrix-Check, weil der Ruleset-Name stabil bleiben muss.
+  ci-ok:
+    needs: [server, web]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless all jobs succeeded
+        run: |
+          echo "server: ${{ needs.server.result }} web: ${{ needs.web.result }} "
+          [ "${{ needs.server.result }}" = "success" ] && [ "${{ needs.web.result }}" = "success" ]
