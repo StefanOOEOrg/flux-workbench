@@ -257,6 +257,35 @@ def test_main_warns_when_the_web_build_is_stale(
     assert "Flux Workbench: http://" in out[1]
 
 
+def test_main_prints_no_stale_hint_for_a_fresh_build(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """#69: a build that is newer than the sources must not warn.
+
+    The stale test above only proves that the hint *appears*; without this one an
+    unconditional print (or an inverted comparison) would still pass it.
+    """
+    src = tmp_path / "src"
+    dist = tmp_path / "dist"
+    src.mkdir()
+    dist.mkdir()
+    (src / "app.ts").write_text("old", encoding="utf-8")
+    os.utime(src / "app.ts", (1000, 1000))
+    (dist / "index.html").write_text("new", encoding="utf-8")
+    os.utime(dist / "index.html", (2000, 2000))
+    monkeypatch.setattr(app_module.config, "WEB_SRC_DIR", src)
+    monkeypatch.setattr(app_module.config, "WEB_DIST_DIR", dist)
+    monkeypatch.setattr(app_module.config, "ENV_FILE", tmp_path / ".env")
+    monkeypatch.setattr(app_module, "build_default_app", lambda: "app")
+    monkeypatch.setattr(app_module.uvicorn, "run", lambda *a, **kw: None)
+
+    app_module.main()
+
+    out = capsys.readouterr().out.splitlines()
+    assert "older than the sources" not in "\n".join(out)
+    assert "Flux Workbench: http://" in out[0]
+
+
 def test_main_prints_no_build_hint_when_web_dist_exists(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
