@@ -171,7 +171,7 @@ loras.example.json       template for the per-machine LoRA slots
 
 ## License
 
-MIT - see [LICENSE](LICENSE). Copyright (c) 2026 StefanOOEOrg.
+MIT - see [LICENSE](LICENSE). Copyright (c) 2026 Stefan SH.
 
 ## Scope and limitations
 
