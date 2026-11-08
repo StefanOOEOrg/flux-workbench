@@ -10,6 +10,8 @@ Local workbench for FLUX renderings. Everything lives in plain folders on disk: 
 send render jobs through a queue to the render bridge, and compare each new image with the previous
 one to see what changed in the prompt and in the parameters.
 
+Background and a walkthrough: [Flux Workbench on LinkedIn](https://www.linkedin.com/feed/update/urn:li:activity:7524365579902808064/).
+
 - `server/` – Python (FastAPI): files under `projects/`, render queue, bridge client, `open` viewer
 - `web/` – Angular app (served by the server under `/`)
 - `projects/YYYYMMDD-<name>/<n>.png` + `<n>.json` (`{"request": …, "effective": …, "render_seconds": …}`)
